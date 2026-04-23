@@ -1,7 +1,0 @@
-{
-  "davies_bouldin_index": 1.4802906024475717,
-  "min_keep_cluster": 152,
-  "min_local_cluster": 454,
-  "n_clusters": 6,
-  "silhouette_score": 0.17842785572021808
-}

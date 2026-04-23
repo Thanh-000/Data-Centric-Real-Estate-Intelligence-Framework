@@ -8,20 +8,28 @@ __pycache__/
 # Data and generated artifacts
 data/raw/*
 !data/raw/.gitkeep
+
 data/interim/*
 !data/interim/.gitkeep
+
 data/processed/*
 !data/processed/.gitkeep
+
 data/artifacts/*
 !data/artifacts/.gitkeep
+
 outputs/*
 !outputs/.gitkeep
-!outputs/figures/
+
+outputs/figures/*
 !outputs/figures/.gitkeep
-!outputs/tables/
+
+outputs/tables/*
 !outputs/tables/.gitkeep
-!outputs/reports/
+
+outputs/reports/*
 !outputs/reports/.gitkeep
+
 *.parquet
 *.pkl
 *.joblib
@@ -29,4 +37,3 @@ outputs/*
 # Local tooling
 .coverage
 htmlcov/
-
