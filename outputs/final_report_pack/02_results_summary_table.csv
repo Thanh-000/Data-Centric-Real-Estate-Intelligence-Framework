@@ -1,0 +1,16 @@
+section,metric,value
+valuation,selected_model,random_forest
+valuation,baseline_model,linear_regression
+valuation,validation_rmse,129084.55
+valuation,test_rmse,147002.45
+valuation,validation_mae,70975.29
+valuation,test_mae,79150.17
+valuation,validation_r2,0.8594
+valuation,test_r2,0.8476
+segmentation,segment_count,6
+segmentation,silhouette_score,0.1784
+segmentation,davies_bouldin_index,1.4803
+uncertainty,interval_method,conformal_prediction_residual_quantile
+uncertainty,interval_coverage,0.8858
+uncertainty,average_interval_width,309509.04
+uncertainty,conformal_qhat,154754.52

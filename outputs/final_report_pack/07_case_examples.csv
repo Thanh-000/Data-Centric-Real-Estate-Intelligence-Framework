@@ -1,0 +1,9 @@
+property_id,observed_price,fair_value_hat,lower_bound,upper_bound,segment_label,anomaly_flag,anomaly_score,top_drivers,data_quality_flag,valuation_interval
+6762700020,7700000.0,4605367.13,4450612.608002644,4760121.651256613,segment_5,potentially_over_valued,9.9985,"sqft_living, grade, long",suspect,4450612.61 to 4760121.65
+9208900037,6890000.0,4413516.9,4258762.38313492,4568271.426388888,segment_5,potentially_over_valued,8.0013,"sqft_living, grade, long",suspect,4258762.38 to 4568271.43
+7558700030,5300000.0,3264498.35,3109743.825992064,3419252.869246033,segment_5,potentially_over_valued,6.5765,"sqft_living, grade, waterfront",suspect,3109743.83 to 3419252.87
+3023069166,1140000.0,2890506.08,2735751.553637567,3045260.5968915354,segment_0,potentially_under_valued,-5.6558,"grade, sqft_living, lat",suspect,2735751.55 to 3045260.6
+2426039123,2420000.0,4103522.58,3948768.056535592,4258277.099789561,segment_5,potentially_under_valued,-5.4393,"grade, sqft_living, lat",suspect,3948768.06 to 4258277.1
+4379600030,1330000.0,2988773.58,2834019.0583994705,3143528.101653439,segment_5,potentially_under_valued,-5.3594,"grade, sqft_living, lat",suspect,2834019.06 to 3143528.1
+5470100220,222000.0,222001.15,67246.62675925923,376755.6700132277,segment_4,within_expected_range,-0.0,"grade, sqft_living, lat",ok,67246.63 to 376755.67
+123059127,625000.0,,,,segment_5,insufficient_history,,"grade, sqft_living, lat",ok,

@@ -37,7 +37,7 @@ This repository performs **Pricing Anomaly Detection / Valuation Gap Analysis on
 - main model: `RandomForestRegressor`
 - chronological split design
 - out-of-fold fair value estimates
-- RMSE, MAE, MAPE, and R² evaluation
+- RMSE, MAE, MAPE, and R2 evaluation
 
 ### 5. Trust & Decision Support Layer
 - conformal-style residual interval estimation
@@ -49,31 +49,33 @@ This repository performs **Pricing Anomaly Detection / Valuation Gap Analysis on
 
 ```text
 .
-├── AGENTS.md
-├── Makefile
-├── README.md
-├── data/
-│   ├── artifacts/
-│   ├── interim/
-│   ├── processed/
-│   └── raw/
-├── notebooks/
-│   └── 01_dc_reif_king_county.ipynb
-├── outputs/
-│   ├── figures/
-│   ├── reports/
-│   └── tables/
-├── scripts/
-│   ├── bootstrap_env.sh
-│   ├── download_data.py
-│   ├── run_pipeline.py
-│   └── run_tests.sh
-├── src/
-│   └── dc_reif/
-└── tests/
+|-- AGENTS.md
+|-- Makefile
+|-- README.md
+|-- data/
+|   |-- artifacts/
+|   |-- interim/
+|   |-- processed/
+|   `-- raw/
+|-- notebooks/
+|   `-- 01_dc_reif_king_county.ipynb
+|-- outputs/
+|   |-- figures/
+|   |-- final_report_pack/
+|   |-- reports/
+|   `-- tables/
+|-- scripts/
+|   |-- bootstrap_env.sh
+|   |-- build_report_results.py
+|   |-- download_data.py
+|   |-- run_pipeline.py
+|   `-- run_tests.sh
+|-- src/
+|   `-- dc_reif/
+`-- tests/
 ```
 
-Raw data and generated outputs are ignored by `.gitignore`. Placeholder `.gitkeep` files keep the directory structure GitHub-ready.
+Raw data and generated outputs are ignored by `.gitignore`, with a small set of intentional summary artifacts allowed for documentation and report use.
 
 ## Dataset
 
@@ -170,6 +172,39 @@ The pipeline entrypoint will:
 9. compute pricing anomaly flags
 10. save figures, tables, reports, and serialized artifacts
 
+## Build the Report-Ready Results Pack
+
+Run:
+
+```bash
+python scripts/build_report_results.py
+```
+
+Or with `make`:
+
+```bash
+make report-results
+```
+
+This presentation-layer script reads the existing frozen pipeline outputs and assembles the official reusable summary artifacts used across the final report, slide deck, notebook, and GitHub documentation.
+
+Canonical source-of-truth files:
+
+- `outputs/reports/final_results_master.json`
+- `outputs/reports/final_results_master.md`
+- `outputs/reports/final_results_master.csv`
+
+Report-ready package:
+
+- `outputs/final_report_pack/01_core_metrics.md`
+- `outputs/final_report_pack/02_results_summary_table.csv`
+- `outputs/final_report_pack/03_anomaly_summary_table.csv`
+- `outputs/final_report_pack/04_selected_figures_manifest.md`
+- `outputs/final_report_pack/05_selected_tables_manifest.md`
+- `outputs/final_report_pack/06_caption_bank.md`
+- `outputs/final_report_pack/07_case_examples.csv`
+- `outputs/final_report_pack/08_core_metrics_table.tex`
+
 ## Run the Notebook Locally
 
 ```bash
@@ -197,6 +232,7 @@ Colab compatibility details:
 - helper functions detect Colab and optionally mount Drive
 - outputs default to `/content/outputs` in Colab
 - if Drive is mounted and a configured Drive folder exists, it can be used instead
+- if automatic download is unavailable, upload `kc_house_data.csv` manually, place it in Drive, or set `DATA_PATH` to the uploaded file location
 
 ## Tests
 
@@ -213,6 +249,7 @@ The test suite covers:
 - chronological split logic
 - preprocessing behavior with train-fit encoders
 - end-to-end pipeline output columns
+- report-results summary assembly
 
 ## Outputs
 
@@ -228,6 +265,8 @@ Typical saved artifacts:
 - `outputs/figures/feature_importance.png`
 - `outputs/figures/shap_summary.png`
 - `outputs/reports/pipeline_summary.md`
+- `outputs/reports/final_results_master.json`
+- `outputs/final_report_pack/`
 - serialized model artifacts under `data/artifacts/`
 
 ## Current Verified Run
@@ -254,6 +293,7 @@ Observed saved summary metrics from that run:
 make install
 make download
 make run
+make report-results
 make notebook
 make test
 make clean

@@ -27,8 +27,24 @@ outputs/figures/*
 outputs/tables/*
 !outputs/tables/.gitkeep
 
+!outputs/reports/
 outputs/reports/*
 !outputs/reports/.gitkeep
+!outputs/reports/final_results_master.json
+!outputs/reports/final_results_master.md
+!outputs/reports/final_results_master.csv
+
+!outputs/final_report_pack/
+outputs/final_report_pack/*
+!outputs/final_report_pack/.gitkeep
+!outputs/final_report_pack/01_core_metrics.md
+!outputs/final_report_pack/02_results_summary_table.csv
+!outputs/final_report_pack/03_anomaly_summary_table.csv
+!outputs/final_report_pack/04_selected_figures_manifest.md
+!outputs/final_report_pack/05_selected_tables_manifest.md
+!outputs/final_report_pack/06_caption_bank.md
+!outputs/final_report_pack/07_case_examples.csv
+!outputs/final_report_pack/08_core_metrics_table.tex
 
 *.parquet
 *.pkl

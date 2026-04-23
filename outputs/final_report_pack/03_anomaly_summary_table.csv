@@ -1,0 +1,5 @@
+anomaly_flag,count
+within_expected_range,16639
+potentially_over_valued,1158
+potentially_under_valued,739
+insufficient_history,3061
