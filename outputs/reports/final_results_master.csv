@@ -2,7 +2,7 @@ section,metric,value
 project,project.title,Beyond Price Prediction: DC-REIF for King County
 project,project.framework,DC-REIF
 project,project.dataset,King County House Sales
-project,project.generated_at_utc,2026-04-24T13:48:44.353469+00:00
+project,project.generated_at_utc,2026-04-24T14:22:29.334511+00:00
 project,project.freeze_status,final_validated_results
 core_valuation_metrics,core_valuation_metrics.selected_model,xgboost
 core_valuation_metrics,core_valuation_metrics.validation_rmse,111003.71

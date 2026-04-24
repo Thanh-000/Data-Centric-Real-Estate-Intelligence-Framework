@@ -69,7 +69,7 @@ def validate_schema(dataframe: pd.DataFrame, required_columns: list[str]) -> Val
     if "sqft_basement" in normalized.columns:
         normalized["sqft_basement"] = normalized["sqft_basement"].replace({"?": pd.NA})
 
-    numeric_candidates = [
+    numeric_options = [
         "price",
         "bedrooms",
         "bathrooms",
@@ -87,7 +87,7 @@ def validate_schema(dataframe: pd.DataFrame, required_columns: list[str]) -> Val
         "sqft_lot15",
     ]
     invalid_summary: dict[str, int] = {}
-    for column in numeric_candidates:
+    for column in numeric_options:
         if column not in normalized.columns:
             continue
         series = pd.to_numeric(normalized[column], errors="coerce")

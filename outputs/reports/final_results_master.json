@@ -54,7 +54,7 @@
     "dataset": "King County House Sales",
     "framework": "DC-REIF",
     "freeze_status": "final_validated_results",
-    "generated_at_utc": "2026-04-24T13:48:44.353469+00:00",
+    "generated_at_utc": "2026-04-24T14:22:29.334511+00:00",
     "title": "Beyond Price Prediction: DC-REIF for King County"
   },
   "segmentation_results": {

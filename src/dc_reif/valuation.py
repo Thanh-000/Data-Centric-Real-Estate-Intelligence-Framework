@@ -451,16 +451,16 @@ def train_and_select_model(
     if not official_model_available():
         raise ImportError("xgboost is required for the official valuation workflow.")
 
-    candidate_rows: list[dict[str, Any]] = []
+    search_rows: list[dict[str, Any]] = []
     validation_predictions: dict[str, pd.Series] = {}
     search_space = _official_xgboost_search_space()
 
-    for candidate in search_space:
+    for config_option in search_space:
         sample_weight = _high_price_weights(
             train_df,
             target_column=target_column,
-            high_price_weight=candidate.high_price_weight,
-            high_price_quantile=candidate.high_price_quantile,
+            high_price_weight=config_option.high_price_weight,
+            high_price_quantile=config_option.high_price_quantile,
         )
         validation_pipeline = _fit_pipeline(
             train_df=train_df,
@@ -468,8 +468,8 @@ def train_and_select_model(
             target_column=target_column,
             model_name=OFFICIAL_MODEL_NAME,
             random_state=random_state,
-            estimator_params=candidate.estimator_params,
-            target_strategy=candidate.target_strategy,
+            estimator_params=config_option.estimator_params,
+            target_strategy=config_option.target_strategy,
             sample_weight=sample_weight,
         )
         validation_pred = pd.Series(
@@ -477,35 +477,35 @@ def train_and_select_model(
                 validation_pipeline,
                 validation_df,
                 feature_columns=feature_columns,
-                target_strategy=candidate.target_strategy,
+                target_strategy=config_option.target_strategy,
             ),
             index=validation_df.index,
-            name=candidate.name,
+            name=config_option.name,
         )
-        validation_predictions[candidate.name] = validation_pred
+        validation_predictions[config_option.name] = validation_pred
         validation_metrics = regression_metrics(validation_df[target_column], validation_pred)
         upper_tail = _upper_tail_metrics(validation_df[target_column], validation_pred)
         selection_score = _selection_score(validation_metrics, upper_tail)
-        candidate_rows.append(
+        search_rows.append(
             {
-                "config_name": candidate.name,
+                "config_name": config_option.name,
                 "model_name": OFFICIAL_MODEL_NAME,
-                "target_strategy": candidate.target_strategy,
-                "high_price_weight": candidate.high_price_weight,
-                "high_price_quantile": candidate.high_price_quantile,
-                "estimator_params_json": json.dumps(candidate.estimator_params, sort_keys=True),
+                "target_strategy": config_option.target_strategy,
+                "high_price_weight": config_option.high_price_weight,
+                "high_price_quantile": config_option.high_price_quantile,
+                "estimator_params_json": json.dumps(config_option.estimator_params, sort_keys=True),
                 "selection_score": float(selection_score),
                 **{f"validation_{metric}": value for metric, value in validation_metrics.items()},
                 **upper_tail,
             }
         )
 
-    selection_summary = pd.DataFrame(candidate_rows).sort_values(
+    selection_summary = pd.DataFrame(search_rows).sort_values(
         ["selection_score", "validation_rmse", "validation_q5_mae"],
         ascending=[True, True, True],
     ).reset_index(drop=True)
     chosen_row = selection_summary.iloc[0]
-    chosen_config = next(candidate for candidate in search_space if candidate.name == chosen_row["config_name"])
+    chosen_config = next(config_option for config_option in search_space if config_option.name == chosen_row["config_name"])
 
     final_pipeline, fair_value_hat_oof, fair_value_hat_test = fit_selected_model_artifacts(
         train_validation_df=train_validation_df,

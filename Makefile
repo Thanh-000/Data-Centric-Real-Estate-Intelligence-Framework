@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: install download run report-results diagnostics notebook test smoke clean
+.PHONY: install download run report-results diagnostics notebook test clean
 
 install:
 	$(PYTHON) -m pip install --upgrade pip
@@ -23,9 +23,6 @@ notebook:
 
 test:
 	$(PYTHON) -m pytest -q
-
-smoke:
-	bash scripts/smoke_test.sh
 
 clean:
 	$(PYTHON) -c "from pathlib import Path; import shutil; [shutil.rmtree(p, ignore_errors=True) for p in [Path('data/interim'), Path('data/processed'), Path('data/artifacts'), Path('outputs')]]"

@@ -120,8 +120,8 @@ def _download_from_kaggle(url: str, target_dir: Path) -> Path:
     ]
     LOGGER.info("Download method: kaggle CLI")
     subprocess.run(command, check=True)
-    zip_candidates = list(target_dir.glob("*.zip"))
-    for zip_path in zip_candidates:
+    zip_files = list(target_dir.glob("*.zip"))
+    for zip_path in zip_files:
         with ZipFile(zip_path) as zipped:
             zipped.extractall(target_dir)
         zip_path.unlink()

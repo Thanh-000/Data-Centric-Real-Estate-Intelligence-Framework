@@ -38,16 +38,16 @@ def maybe_mount_drive(force: bool = False) -> Path | None:
 def resolve_data_path(filename: str, data_path: str | None = None) -> Path:
     env_path = data_path or os.getenv("DATA_PATH")
     if env_path:
-        candidate = Path(env_path).expanduser()
-        return candidate if candidate.suffix else candidate / filename
+        resolved_path = Path(env_path).expanduser()
+        return resolved_path if resolved_path.suffix else resolved_path / filename
 
-    drive_candidate = Path("/content/drive/MyDrive/dc_reif/data/raw")
-    if is_running_in_colab() and drive_candidate.exists():
-        return drive_candidate / filename
+    drive_path = Path("/content/drive/MyDrive/dc_reif/data/raw")
+    if is_running_in_colab() and drive_path.exists():
+        return drive_path / filename
 
-    local_candidate = Path.cwd() / "data" / "raw"
-    ensure_directory(local_candidate)
-    return local_candidate / filename
+    local_path = Path.cwd() / "data" / "raw"
+    ensure_directory(local_path)
+    return local_path / filename
 
 
 def resolve_output_root() -> Path:
@@ -62,4 +62,3 @@ def resolve_output_root() -> Path:
         return ensure_directory(Path("/content/outputs"))
 
     return ensure_directory(Path.cwd() / "outputs")
-

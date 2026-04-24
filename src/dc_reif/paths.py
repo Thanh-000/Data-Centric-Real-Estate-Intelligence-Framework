@@ -55,7 +55,7 @@ class ProjectPaths:
 
 def project_root_from_file(path: Path) -> Path:
     resolved = path.resolve()
-    for candidate in [resolved] + list(resolved.parents):
-        if (candidate / "pyproject.toml").exists() or (candidate / "README.md").exists():
-            return candidate
+    for root_option in [resolved] + list(resolved.parents):
+        if (root_option / "pyproject.toml").exists() or (root_option / "README.md").exists():
+            return root_option
     return resolved.parents[2]

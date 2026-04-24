@@ -169,6 +169,8 @@ Core report pack artifacts:
 - The anomaly layer is framed for sale-price valuation gaps, not for listing-side decisions.
 - The data download workflow preserves checksum verification and graceful fallback behavior.
 
+Detailed safeguards are summarized in `docs/methodology/safeguards.md`.
+
 ## Limitations
 
 - The repository is intentionally scoped to the King County House Sales dataset.
