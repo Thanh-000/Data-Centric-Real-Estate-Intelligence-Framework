@@ -1,0 +1,34 @@
+section,metric,value
+project,project.title,Beyond Price Prediction: DC-REIF for King County
+project,project.framework,DC-REIF
+project,project.dataset,King County House Sales
+project,project.generated_at_utc,2026-04-23T20:37:11.877397+00:00
+project,project.freeze_status,official_frozen_results
+core_valuation_metrics,core_valuation_metrics.selected_model,random_forest
+core_valuation_metrics,core_valuation_metrics.baseline_model,linear_regression
+core_valuation_metrics,core_valuation_metrics.validation_rmse,129084.55
+core_valuation_metrics,core_valuation_metrics.test_rmse,147002.45
+core_valuation_metrics,core_valuation_metrics.validation_mae,70975.29
+core_valuation_metrics,core_valuation_metrics.test_mae,79150.17
+core_valuation_metrics,core_valuation_metrics.validation_r2,0.8594
+core_valuation_metrics,core_valuation_metrics.test_r2,0.8476
+segmentation_results,segmentation_results.segment_count,6
+segmentation_results,segmentation_results.silhouette_score,0.1784
+segmentation_results,segmentation_results.davies_bouldin_index,1.4803
+segmentation_results,segmentation_results.segment_summary_reference,outputs/tables/cluster_profiles.csv
+segmentation_results,segmentation_results.segment_profile_count,6
+uncertainty_results,uncertainty_results.interval_method,conformal_prediction_residual_quantile
+uncertainty_results,uncertainty_results.interval_coverage,0.8858
+uncertainty_results,uncertainty_results.average_interval_width,309509.04
+uncertainty_results,uncertainty_results.conformal_qhat,154754.52
+pricing_anomaly_results,pricing_anomaly_results.within_expected_range,16639
+pricing_anomaly_results,pricing_anomaly_results.potentially_over_valued,1158
+pricing_anomaly_results,pricing_anomaly_results.potentially_under_valued,739
+pricing_anomaly_results,pricing_anomaly_results.insufficient_history,3061
+explainability_results,explainability_results.top_features,"[""grade"", ""sqft_living"", ""lat"", ""long"", ""sqft_living15""]"
+explainability_results,explainability_results.feature_importance_file,outputs/tables/feature_importance.csv
+explainability_results,explainability_results.shap_summary_file,outputs/figures/shap_summary.png
+output_references,output_references.key_figure_files,"[""outputs/figures/price_distribution.png"", ""outputs/figures/log_price_distribution.png"", ""outputs/figures/spatial_price_map.png"", ""outputs/figures/temporal_trend.png"", ""outputs/figures/feature_importance.png"", ""outputs/figures/shap_summary.png""]"
+output_references,output_references.key_table_files,"[""outputs/tables/model_comparison.csv"", ""outputs/tables/cluster_profiles.csv"", ""outputs/tables/feature_importance.csv"", ""outputs/tables/property_intelligence_table.csv""]"
+output_references,output_references.final_property_intelligence_table,outputs/tables/property_intelligence_table.csv
+output_references,output_references.upstream_reports,"[""outputs/reports/cluster_summary.json"", ""outputs/reports/uncertainty_metrics.json"", ""outputs/reports/pipeline_summary.md""]"

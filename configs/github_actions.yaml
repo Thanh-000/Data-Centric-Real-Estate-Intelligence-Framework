@@ -1,0 +1,6 @@
+runtime:
+  environment: github_actions
+  python_version: "3.11"
+  smoke_pipeline: true
+  report_results: true
+

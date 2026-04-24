@@ -15,29 +15,18 @@ def test_report_results_pack_assembles_canonical_summary(temp_config):
     pd.DataFrame(
         [
             {
-                "model_name": "random_forest",
-                "validation_rmse": 129084.55,
-                "validation_mae": 70975.29,
-                "validation_mape": 13.5,
-                "validation_r2": 0.8594,
-                "test_rmse": 147002.45,
-                "test_mae": 79150.17,
-                "test_mape": 13.24,
-                "test_r2": 0.8476,
-            },
-            {
-                "model_name": "linear_regression",
-                "validation_rmse": 147987.98,
-                "validation_mae": 95296.02,
-                "validation_mape": 20.4,
-                "validation_r2": 0.8152,
-                "test_rmse": 177181.17,
-                "test_mae": 100810.06,
-                "test_mape": 19.21,
-                "test_r2": 0.7787,
+                "model_name": "xgboost",
+                "validation_rmse": 110852.91,
+                "validation_mae": 65525.94,
+                "validation_mape": 12.93,
+                "validation_r2": 0.8963,
+                "test_rmse": 121629.66,
+                "test_mae": 70271.43,
+                "test_mape": 12.43,
+                "test_r2": 0.8957,
             },
         ]
-    ).to_csv(temp_config.paths.tables_dir / "model_comparison.csv", index=False)
+    ).to_csv(temp_config.paths.tables_dir / "valuation_metrics.csv", index=False)
     pd.DataFrame(
         [
             {"feature": "grade", "importance": 0.33},
@@ -56,6 +45,90 @@ def test_report_results_pack_assembles_canonical_summary(temp_config):
     pd.DataFrame(
         [
             {
+                "id": "1",
+                "date": "2014-05-01",
+                "price": 700000,
+                "zipcode": "98001",
+                "lat": 47.5,
+                "long": -122.2,
+                "sqft_living": 1800,
+                "sqft_lot": 5000,
+                "sqft_above": 1400,
+                "sqft_basement": 400,
+                "bedrooms": 3,
+                "bathrooms": 2.0,
+                "floors": 2.0,
+                "yr_built": 1980,
+                "yr_renovated": 0,
+                "grade": 7,
+                "sqft_living15": 1750,
+                "sqft_lot15": 5200,
+            },
+            {
+                "id": "2",
+                "date": "2014-05-02",
+                "price": 300000,
+                "zipcode": "98001",
+                "lat": 47.5,
+                "long": -122.2,
+                "sqft_living": 1200,
+                "sqft_lot": 4500,
+                "sqft_above": 1000,
+                "sqft_basement": 200,
+                "bedrooms": 2,
+                "bathrooms": 1.5,
+                "floors": 1.0,
+                "yr_built": 1975,
+                "yr_renovated": 0,
+                "grade": 6,
+                "sqft_living15": 1250,
+                "sqft_lot15": 4700,
+            },
+            {
+                "id": "3",
+                "date": "2014-05-03",
+                "price": 480000,
+                "zipcode": "98002",
+                "lat": 47.6,
+                "long": -122.1,
+                "sqft_living": 1600,
+                "sqft_lot": 4000,
+                "sqft_above": 1600,
+                "sqft_basement": 0,
+                "bedrooms": 3,
+                "bathrooms": 2.0,
+                "floors": 1.0,
+                "yr_built": 1995,
+                "yr_renovated": 2005,
+                "grade": 8,
+                "sqft_living15": 1650,
+                "sqft_lot15": 4100,
+            },
+            {
+                "id": "4",
+                "date": "2014-05-04",
+                "price": 510000,
+                "zipcode": "98002",
+                "lat": 47.6,
+                "long": -122.1,
+                "sqft_living": 1700,
+                "sqft_lot": 4300,
+                "sqft_above": 1500,
+                "sqft_basement": 200,
+                "bedrooms": 3,
+                "bathrooms": 2.5,
+                "floors": 2.0,
+                "yr_built": 1990,
+                "yr_renovated": 0,
+                "grade": 8,
+                "sqft_living15": 1750,
+                "sqft_lot15": 4400,
+            },
+        ]
+    ).to_csv(temp_config.feature_dataset_path, index=False)
+    pd.DataFrame(
+        [
+            {
                 "property_id": "1",
                 "observed_price": 700000,
                 "fair_value_hat": 500000,
@@ -63,6 +136,11 @@ def test_report_results_pack_assembles_canonical_summary(temp_config):
                 "upper_bound": 550000,
                 "interval_width": 100000,
                 "segment_label": "segment_0",
+                "sale_date": "2014-05-01",
+                "zipcode": "98001",
+                "sqft_living": 1800,
+                "grade": 7,
+                "house_age": 34,
                 "data_quality_flag": "ok",
                 "valuation_gap": 200000,
                 "anomaly_score": 2.0,
@@ -77,6 +155,11 @@ def test_report_results_pack_assembles_canonical_summary(temp_config):
                 "upper_bound": 500000,
                 "interval_width": 100000,
                 "segment_label": "segment_0",
+                "sale_date": "2014-05-02",
+                "zipcode": "98001",
+                "sqft_living": 1200,
+                "grade": 6,
+                "house_age": 39,
                 "data_quality_flag": "ok",
                 "valuation_gap": -150000,
                 "anomaly_score": -1.5,
@@ -91,6 +174,11 @@ def test_report_results_pack_assembles_canonical_summary(temp_config):
                 "upper_bound": 525000,
                 "interval_width": 100000,
                 "segment_label": "segment_1",
+                "sale_date": "2014-05-03",
+                "zipcode": "98002",
+                "sqft_living": 1600,
+                "grade": 8,
+                "house_age": 19,
                 "data_quality_flag": "ok",
                 "valuation_gap": 5000,
                 "anomaly_score": 0.05,
@@ -105,6 +193,11 @@ def test_report_results_pack_assembles_canonical_summary(temp_config):
                 "upper_bound": None,
                 "interval_width": None,
                 "segment_label": "segment_1",
+                "sale_date": "2014-05-04",
+                "zipcode": "98002",
+                "sqft_living": 1700,
+                "grade": 8,
+                "house_age": 24,
                 "data_quality_flag": "ok",
                 "valuation_gap": None,
                 "anomaly_score": None,
@@ -122,11 +215,11 @@ def test_report_results_pack_assembles_canonical_summary(temp_config):
     (temp_config.paths.figures_dir / "shap_summary.png").write_bytes(b"png")
 
     (temp_config.paths.reports_dir / "cluster_summary.json").write_text(
-        json.dumps({"n_clusters": 6, "silhouette_score": 0.1784, "davies_bouldin_index": 1.4803}),
+        json.dumps({"n_clusters": 6, "silhouette_score": 0.1839, "davies_bouldin_index": 1.6291}),
         encoding="utf-8",
     )
     (temp_config.paths.reports_dir / "uncertainty_metrics.json").write_text(
-        json.dumps({"empirical_coverage": 0.8858, "average_interval_width": 309509.04, "q_hat": 154754.52}),
+        json.dumps({"empirical_coverage": 0.8831, "average_interval_width": 280938.25, "q_hat": 140469.12}),
         encoding="utf-8",
     )
     (temp_config.paths.reports_dir / "pipeline_summary.md").write_text("summary", encoding="utf-8")
@@ -134,8 +227,11 @@ def test_report_results_pack_assembles_canonical_summary(temp_config):
     summary = build_final_results_summary(temp_config)
     artifacts = build_report_results_pack(temp_config)
 
-    assert summary["core_valuation_metrics"]["selected_model"] == "random_forest"
+    assert summary["core_valuation_metrics"]["selected_model"] == "xgboost"
     assert summary["pricing_anomaly_results"]["potentially_over_valued"] == 1
-    assert summary["uncertainty_results"]["interval_coverage"] == 0.8858
+    assert summary["uncertainty_results"]["interval_coverage"] == 0.8831
     assert artifacts["summary_json"].exists()
     assert artifacts["pack_case_examples"].exists()
+    assert artifacts["pack_error_by_segment"].exists()
+    assert artifacts["pack_anomaly_by_price_band"].exists()
+    assert artifacts["pack_improved_segment_profiles"].exists()

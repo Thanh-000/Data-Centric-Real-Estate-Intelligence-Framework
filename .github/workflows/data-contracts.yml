@@ -1,0 +1,31 @@
+name: data-contracts
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "data/registry/**"
+      - "src/dc_reif/governance/**"
+      - ".github/workflows/data-contracts.yml"
+
+jobs:
+  validate-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate data registry files
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          for path in [
+              Path("data/registry/data_manifest.json"),
+              Path("data/registry/schema_contract.json"),
+          ]:
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              print(path, sorted(payload.keys()))
+          PY
+

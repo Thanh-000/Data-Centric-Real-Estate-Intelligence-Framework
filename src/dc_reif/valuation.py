@@ -12,14 +12,30 @@ from sklearn.pipeline import Pipeline
 from dc_reif.preprocessing import build_preprocessor
 from dc_reif.splitting import make_time_series_cv
 
+try:  # pragma: no cover - dependency validated in runtime/tests
+    from xgboost import XGBRegressor
+except Exception:  # pragma: no cover
+    XGBRegressor = None
+
+
+OFFICIAL_MODEL_NAME = "xgboost"
+
 
 @dataclass
 class ValuationArtifacts:
     model_name: str
     model_pipeline: Pipeline
-    model_comparison: pd.DataFrame
+    valuation_metrics: pd.DataFrame
     fair_value_hat_oof: pd.Series
     fair_value_hat_test: pd.Series
+    validation_predictions: dict[str, pd.Series]
+    test_predictions_by_model: dict[str, pd.Series]
+    evaluation_summary: dict[str, dict[str, float]]
+
+
+@dataclass
+class ModelSuiteArtifacts:
+    valuation_metrics: pd.DataFrame
     validation_predictions: dict[str, pd.Series]
     test_predictions_by_model: dict[str, pd.Series]
     evaluation_summary: dict[str, dict[str, float]]
@@ -35,7 +51,26 @@ def _make_estimator(model_name: str, random_state: int) -> object:
             random_state=random_state,
             n_jobs=-1,
         )
+    if model_name == "xgboost":
+        if XGBRegressor is None:
+            raise ImportError("xgboost is not installed. Install it to run the official valuation pipeline.")
+        return XGBRegressor(
+            objective="reg:squarederror",
+            n_estimators=400,
+            learning_rate=0.05,
+            max_depth=6,
+            min_child_weight=3,
+            subsample=0.85,
+            colsample_bytree=0.85,
+            reg_lambda=1.0,
+            random_state=random_state,
+            n_jobs=-1,
+        )
     raise ValueError(f"Unsupported model: {model_name}")
+
+
+def official_model_available(model_name: str = OFFICIAL_MODEL_NAME) -> bool:
+    return model_name != "xgboost" or XGBRegressor is not None
 
 
 def _scale_numeric(model_name: str) -> bool:
@@ -95,17 +130,16 @@ def generate_oof_predictions(
     return oof_predictions.sort_index()
 
 
-def train_and_select_model(
+def evaluate_model_suite(
     train_df: pd.DataFrame,
     validation_df: pd.DataFrame,
     train_validation_df: pd.DataFrame,
     test_df: pd.DataFrame,
     feature_columns: list[str],
     target_column: str,
-    n_splits: int,
+    model_names: list[str],
     random_state: int,
-) -> ValuationArtifacts:
-    model_names = ["linear_regression", "random_forest"]
+) -> ModelSuiteArtifacts:
     rows: list[dict[str, float | str]] = []
     validation_predictions: dict[str, pd.Series] = {}
     test_predictions_by_model: dict[str, pd.Series] = {}
@@ -155,22 +189,35 @@ def train_and_select_model(
         )
 
     comparison = pd.DataFrame(rows).sort_values("validation_rmse").reset_index(drop=True)
-    lr_rmse = float(comparison.loc[comparison["model_name"] == "linear_regression", "validation_rmse"].iloc[0])
-    rf_rmse = float(comparison.loc[comparison["model_name"] == "random_forest", "validation_rmse"].iloc[0])
-    chosen_model = "random_forest" if rf_rmse <= lr_rmse * 1.05 else "linear_regression"
+    return ModelSuiteArtifacts(
+        valuation_metrics=comparison,
+        validation_predictions=validation_predictions,
+        test_predictions_by_model=test_predictions_by_model,
+        evaluation_summary=evaluation_summary,
+    )
 
+
+def fit_selected_model_artifacts(
+    train_validation_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    feature_columns: list[str],
+    target_column: str,
+    model_name: str,
+    n_splits: int,
+    random_state: int,
+) -> tuple[Pipeline, pd.Series, pd.Series]:
     final_pipeline = _fit_pipeline(
         train_validation_df,
         feature_columns=feature_columns,
         target_column=target_column,
-        model_name=chosen_model,
+        model_name=model_name,
         random_state=random_state,
     )
     fair_value_hat_oof = generate_oof_predictions(
         train_validation_df=train_validation_df,
         feature_columns=feature_columns,
         target_column=target_column,
-        model_name=chosen_model,
+        model_name=model_name,
         n_splits=n_splits,
         random_state=random_state,
     )
@@ -179,15 +226,67 @@ def train_and_select_model(
         index=test_df.index,
         name="fair_value_hat_test",
     )
+    return final_pipeline, fair_value_hat_oof, fair_value_hat_test
+
+
+def train_and_select_model(
+    train_df: pd.DataFrame,
+    validation_df: pd.DataFrame,
+    train_validation_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    feature_columns: list[str],
+    target_column: str,
+    n_splits: int,
+    random_state: int,
+) -> ValuationArtifacts:
+    chosen_model = OFFICIAL_MODEL_NAME
+    validation_pipeline = _fit_pipeline(
+        train_df=train_df,
+        feature_columns=feature_columns,
+        target_column=target_column,
+        model_name=chosen_model,
+        random_state=random_state,
+    )
+    validation_pred = pd.Series(
+        validation_pipeline.predict(validation_df[feature_columns]),
+        index=validation_df.index,
+        name=f"{chosen_model}_validation_prediction",
+    )
+    validation_metrics = regression_metrics(validation_df[target_column], validation_pred)
+
+    final_pipeline, fair_value_hat_oof, fair_value_hat_test = fit_selected_model_artifacts(
+        train_validation_df=train_validation_df,
+        test_df=test_df,
+        feature_columns=feature_columns,
+        target_column=target_column,
+        model_name=chosen_model,
+        n_splits=n_splits,
+        random_state=random_state,
+    )
+    test_metrics = regression_metrics(test_df[target_column], fair_value_hat_test)
+    comparison = pd.DataFrame(
+        [
+            {
+                "model_name": chosen_model,
+                **{f"validation_{metric}": value for metric, value in validation_metrics.items()},
+                **{f"test_{metric}": value for metric, value in test_metrics.items()},
+            }
+        ]
+    )
+    evaluation_summary = {
+        chosen_model: {
+            **{f"validation_{metric}": value for metric, value in validation_metrics.items()},
+            **{f"test_{metric}": value for metric, value in test_metrics.items()},
+        }
+    }
 
     return ValuationArtifacts(
         model_name=chosen_model,
         model_pipeline=final_pipeline,
-        model_comparison=comparison,
+        valuation_metrics=comparison,
         fair_value_hat_oof=fair_value_hat_oof,
         fair_value_hat_test=fair_value_hat_test,
-        validation_predictions=validation_predictions,
-        test_predictions_by_model=test_predictions_by_model,
+        validation_predictions={chosen_model: validation_pred},
+        test_predictions_by_model={chosen_model: fair_value_hat_test},
         evaluation_summary=evaluation_summary,
     )
-

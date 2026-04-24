@@ -1,0 +1,10 @@
+property_id,sale_date,zipcode,observed_price,fair_value_hat,lower_bound,upper_bound,segment_label,price_band,anomaly_flag,anomaly_score,top_drivers,data_quality_flag
+6762700020,2014-10-13,98102,7700000.0,4462991.0,4322521.875,4603460.125,segment_4,Q5,potentially_over_valued,11.522136982059225,"grade_living_interaction, location_grade_interaction, distance_to_seattle_core",suspect
+9208900037,2014-09-19,98039,6890000.0,4231932.5,4091463.375,4372401.625,segment_1,Q5,potentially_over_valued,9.461394096389508,"grade_living_interaction, location_grade_interaction, distance_to_seattle_core",suspect
+7558700030,2015-04-13,98040,5300000.0,3373380.25,3232911.125,3513849.375,segment_1,Q5,potentially_over_valued,6.857805051465936,"grade_living_interaction, location_grade_interaction, distance_to_seattle_core",suspect
+2424059170,2015-02-19,98006,900000.0,2340601.0,2200131.875,2481070.125,segment_1,Q5,potentially_under_valued,-5.127820793359395,"grade_living_interaction, location_grade_interaction, waterfront",suspect
+3262300555,2014-07-08,98039,2460000.0,3737143.5,3596674.375,3877612.625,segment_1,Q5,potentially_under_valued,-4.54599364807035,"grade_living_interaction, location_grade_interaction, waterfront",suspect
+9175600025,2014-10-07,98166,800000.0,1789474.5,1649005.375,1929943.625,segment_1,Q5,potentially_under_valued,-3.52203553627888,"grade_living_interaction, location_grade_interaction, waterfront",suspect
+7215721330,2014-10-23,98075,485000.0,484998.40625,344529.28125,625467.53125,segment_1,Q3,within_expected_range,5.672954821922611e-06,"grade_living_interaction, location_grade_interaction, waterfront",ok
+2475901105,2014-07-15,98024,291000.0,290995.71875,150526.59375,431464.84375,segment_5,Q1,within_expected_range,1.5239113933399955e-05,"grade_living_interaction, location_grade_interaction, waterfront",ok
+9808700762,2014-06-11,98004,7060000.0,,,,segment_4,Q5,insufficient_history,,"grade_living_interaction, location_grade_interaction, waterfront",suspect

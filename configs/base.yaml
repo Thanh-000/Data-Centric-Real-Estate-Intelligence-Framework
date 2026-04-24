@@ -1,0 +1,15 @@
+project:
+  name: dc_reif
+  implementation_track: "dataset_aligned"
+  freeze_mode: true
+
+data:
+  dataset: king_county_house_sales
+  data_url: https://raw.githubusercontent.com/randellmwania/Kings-County-Housing-Project/master/data/kc_house_data.csv
+  data_filename: kc_house_data.csv
+  use_aria2: true
+
+modeling:
+  official_model: xgboost
+  segmentation_model: kmeans
+  anomaly_layer: pricing_anomaly_detection

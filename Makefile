@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: install download run report-results notebook test clean
+.PHONY: install download run report-results diagnostics market-representation uncertainty-calibration notebook test smoke clean
 
 install:
 	$(PYTHON) -m pip install --upgrade pip
@@ -15,11 +15,23 @@ run:
 report-results:
 	$(PYTHON) scripts/build_report_results.py
 
+diagnostics:
+	$(PYTHON) scripts/build_diagnostics.py
+
+market-representation:
+	$(PYTHON) scripts/run_market_representation.py
+
+uncertainty-calibration:
+	$(PYTHON) scripts/run_uncertainty_calibration.py
+
 notebook:
 	$(PYTHON) -m notebook notebooks/01_dc_reif_king_county.ipynb
 
 test:
 	$(PYTHON) -m pytest -q
+
+smoke:
+	bash scripts/smoke_test.sh
 
 clean:
 	$(PYTHON) -c "from pathlib import Path; import shutil; [shutil.rmtree(p, ignore_errors=True) for p in [Path('data/interim'), Path('data/processed'), Path('data/artifacts'), Path('outputs')]]"

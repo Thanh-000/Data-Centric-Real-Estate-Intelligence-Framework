@@ -25,16 +25,16 @@
 - Caption: Monthly median sale price trend highlighting temporal market movement and motivating time-aware train-validation-test splits.
 
 ## Feature Importance
-- Title: Random Forest Global Feature Importance
-- Caption: Ranked feature importance values from the selected Random Forest valuation model, with grade, living area, and location dominating predictive signal.
+- Title: Global Feature Importance for the Official Valuation Model
+- Caption: Ranked feature importance values from the selected valuation model, with structural quality, living area, and location-related variables contributing the strongest signal.
 
 ## SHAP Summary
 - Title: SHAP Summary for the Selected Valuation Model
 - Caption: SHAP-based summary of global driver effects for the final valuation model, included as an explainability reference where runtime permits.
 
-## Model Comparison Table
-- Title: Baseline and Main Model Performance Comparison
-- Caption: Validation and holdout test metrics comparing the Linear Regression baseline with the Random Forest main model under the frozen DC-REIF design.
+## Valuation Performance Table
+- Title: Official Valuation Model Performance
+- Caption: Validation and holdout test metrics for the single official DC-REIF valuation model used in the final pricing anomaly workflow.
 
 ## Segmentation Summary Table
 - Title: KMeans Submarket Representation Summary

@@ -9,4 +9,4 @@ requests>=2.31
 scikit-learn>=1.4
 seaborn>=0.13
 shap>=0.45
-
+xgboost>=2.0

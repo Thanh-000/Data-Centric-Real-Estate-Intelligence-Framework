@@ -8,6 +8,7 @@ from typing import Any
 import pandas as pd
 
 from dc_reif.config import ProjectConfig
+from dc_reif.diagnostics import build_diagnostics_artifacts
 from dc_reif.utils import ensure_directory, format_float, utc_timestamp
 
 
@@ -51,6 +52,16 @@ def _read_json(path: Path, label: str) -> dict[str, Any]:
 
 def _read_csv(path: Path, label: str) -> pd.DataFrame:
     return pd.read_csv(_require_file(path, label))
+
+
+def _load_valuation_metrics(paths: ReportResultsPaths) -> pd.DataFrame:
+    official_metrics_path = paths.tables_dir / "valuation_metrics.csv"
+    if official_metrics_path.exists():
+        return _read_csv(official_metrics_path, "valuation metrics table")
+
+    legacy_path = paths.tables_dir / "model_comparison.csv"
+    legacy = _read_csv(legacy_path, "legacy model comparison table")
+    return legacy.sort_values("validation_rmse").head(1).reset_index(drop=True)
 
 
 def _flatten_summary(summary: dict[str, Any]) -> pd.DataFrame:
@@ -126,18 +137,14 @@ def build_final_results_summary(config: ProjectConfig | None = None) -> dict[str
     config = config or ProjectConfig.default()
     paths = ReportResultsPaths.from_config(config)
 
-    model_comparison = _read_csv(paths.tables_dir / "model_comparison.csv", "model comparison table")
+    valuation_metrics = _load_valuation_metrics(paths)
     cluster_profiles = _read_csv(paths.tables_dir / "cluster_profiles.csv", "cluster profiles table")
     feature_importance = _read_csv(paths.tables_dir / "feature_importance.csv", "feature importance table")
     property_intelligence = _read_csv(paths.tables_dir / "property_intelligence_table.csv", "property intelligence table")
     cluster_summary = _read_json(paths.reports_dir / "cluster_summary.json", "cluster summary report")
     uncertainty_metrics = _read_json(paths.reports_dir / "uncertainty_metrics.json", "uncertainty summary report")
 
-    selected_row = model_comparison.sort_values("validation_rmse").iloc[0]
-    baseline_row = model_comparison.loc[model_comparison["model_name"] == "linear_regression"]
-    if baseline_row.empty:
-        raise ReportResultsError("Baseline Linear Regression metrics are missing from model_comparison.csv")
-    baseline_row = baseline_row.iloc[0]
+    selected_row = valuation_metrics.iloc[0]
 
     top_features = feature_importance["feature"].head(5).tolist()
     anomaly_counts = property_intelligence["anomaly_flag"].value_counts().to_dict()
@@ -154,7 +161,7 @@ def build_final_results_summary(config: ProjectConfig | None = None) -> dict[str
         figure_paths.append(optional_figure)
 
     table_paths = [
-        paths.tables_dir / "model_comparison.csv",
+        paths.tables_dir / "valuation_metrics.csv",
         paths.tables_dir / "cluster_profiles.csv",
         paths.tables_dir / "feature_importance.csv",
         paths.tables_dir / "property_intelligence_table.csv",
@@ -170,7 +177,6 @@ def build_final_results_summary(config: ProjectConfig | None = None) -> dict[str
         },
         "core_valuation_metrics": {
             "selected_model": str(selected_row["model_name"]),
-            "baseline_model": str(baseline_row["model_name"]),
             "validation_rmse": format_float(float(selected_row["validation_rmse"]), digits=2),
             "test_rmse": format_float(float(selected_row["test_rmse"]), digits=2),
             "validation_mae": format_float(float(selected_row["validation_mae"]), digits=2),
@@ -232,7 +238,6 @@ def markdown_summary_block(summary: dict[str, Any]) -> str:
         "",
         "## Core Valuation Metrics",
         f"- Selected model: `{core['selected_model']}`",
-        f"- Baseline model: `{core['baseline_model']}`",
         f"- Validation RMSE: `{core['validation_rmse']}`",
         f"- Test RMSE: `{core['test_rmse']}`",
         f"- Validation MAE: `{core['validation_mae']}`",
@@ -293,7 +298,6 @@ def latex_core_metrics_table(summary: dict[str, Any]) -> str:
     core = summary["core_valuation_metrics"]
     rows = [
         ("Selected model", core["selected_model"]),
-        ("Baseline model", core["baseline_model"]),
         ("Validation RMSE", core["validation_rmse"]),
         ("Test RMSE", core["test_rmse"]),
         ("Validation MAE", core["validation_mae"]),
@@ -343,16 +347,16 @@ def _caption_bank() -> str:
             "- Caption: Monthly median sale price trend highlighting temporal market movement and motivating time-aware train-validation-test splits.",
             "",
             "## Feature Importance",
-            "- Title: Random Forest Global Feature Importance",
-            "- Caption: Ranked feature importance values from the selected Random Forest valuation model, with grade, living area, and location dominating predictive signal.",
+            "- Title: Global Feature Importance for the Official Valuation Model",
+            "- Caption: Ranked feature importance values from the selected valuation model, with structural quality, living area, and location-related variables contributing the strongest signal.",
             "",
             "## SHAP Summary",
             "- Title: SHAP Summary for the Selected Valuation Model",
             "- Caption: SHAP-based summary of global driver effects for the final valuation model, included as an explainability reference where runtime permits.",
             "",
-            "## Model Comparison Table",
-            "- Title: Baseline and Main Model Performance Comparison",
-            "- Caption: Validation and holdout test metrics comparing the Linear Regression baseline with the Random Forest main model under the frozen DC-REIF design.",
+            "## Valuation Performance Table",
+            "- Title: Official Valuation Model Performance",
+            "- Caption: Validation and holdout test metrics for the single official DC-REIF valuation model used in the final pricing anomaly workflow.",
             "",
             "## Segmentation Summary Table",
             "- Title: KMeans Submarket Representation Summary",
@@ -388,7 +392,7 @@ def _selected_figures_manifest(summary: dict[str, Any]) -> str:
 def _selected_tables_manifest(summary: dict[str, Any]) -> str:
     lines = ["# Selected Tables Manifest", ""]
     usage = {
-        "model_comparison.csv": "Official performance table for baseline vs main model.",
+        "valuation_metrics.csv": "Official validation and holdout performance table for the single active valuation model.",
         "cluster_profiles.csv": "Segmentation reference table for submarket context.",
         "feature_importance.csv": "Explainability reference table for top global drivers.",
         "property_intelligence_table.csv": "Master property-level output table for anomaly analysis and case selection.",
@@ -425,7 +429,6 @@ def build_report_results_pack(config: ProjectConfig | None = None) -> dict[str, 
     results_summary_rows = pd.DataFrame(
         [
             {"section": "valuation", "metric": "selected_model", "value": summary["core_valuation_metrics"]["selected_model"]},
-            {"section": "valuation", "metric": "baseline_model", "value": summary["core_valuation_metrics"]["baseline_model"]},
             {"section": "valuation", "metric": "validation_rmse", "value": summary["core_valuation_metrics"]["validation_rmse"]},
             {"section": "valuation", "metric": "test_rmse", "value": summary["core_valuation_metrics"]["test_rmse"]},
             {"section": "valuation", "metric": "validation_mae", "value": summary["core_valuation_metrics"]["validation_mae"]},
@@ -478,4 +481,5 @@ def build_report_results_pack(config: ProjectConfig | None = None) -> dict[str, 
     results_summary_rows.to_csv(artifacts["pack_results_table"], index=False)
     anomaly_summary_rows.to_csv(artifacts["pack_anomaly_table"], index=False)
     case_examples.to_csv(artifacts["pack_case_examples"], index=False)
+    artifacts.update(build_diagnostics_artifacts(config, summary=summary))
     return artifacts

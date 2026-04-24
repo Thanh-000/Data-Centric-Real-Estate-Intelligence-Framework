@@ -24,8 +24,8 @@ class ClusteringArtifacts:
     cluster_profiles: pd.DataFrame
 
 
-def _cluster_features() -> list[str]:
-    return [
+def _cluster_features(include_enhanced_features: bool = False) -> list[str]:
+    feature_columns = [
         "sqft_living",
         "sqft_lot",
         "bedrooms",
@@ -36,10 +36,28 @@ def _cluster_features() -> list[str]:
         "lat",
         "long",
     ]
+    if include_enhanced_features:
+        feature_columns.extend(
+            [
+                "living_to_lot_ratio",
+                "basement_share",
+                "bathrooms_per_bedroom",
+                "relative_living_area",
+                "renovated_flag",
+                "distance_to_seattle_core",
+                "distance_to_bellevue_core",
+                "waterfront_view_score",
+            ]
+        )
+    return feature_columns
 
 
-def fit_submarket_clustering(train_df: pd.DataFrame, random_state: int = 42) -> ClusteringArtifacts:
-    feature_columns = _cluster_features()
+def fit_submarket_clustering(
+    train_df: pd.DataFrame,
+    random_state: int = 42,
+    include_enhanced_features: bool = False,
+) -> ClusteringArtifacts:
+    feature_columns = [column for column in _cluster_features(include_enhanced_features) if column in train_df.columns]
     n_train = len(train_df)
     min_keep_cluster = max(30, math.ceil(0.01 * n_train))
     min_local_cluster = max(80, math.ceil(0.03 * n_train))

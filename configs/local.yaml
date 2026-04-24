@@ -1,0 +1,5 @@
+runtime:
+  environment: local
+  output_dir: outputs
+  data_dir: data/raw
+

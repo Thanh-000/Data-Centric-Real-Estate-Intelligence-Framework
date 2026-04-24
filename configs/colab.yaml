@@ -1,0 +1,9 @@
+runtime:
+  environment: colab
+  output_dir: /content/outputs
+  drive_output_dir: /content/drive/MyDrive/dc_reif/outputs
+  notes:
+    - Install dependencies from requirements.txt in the notebook bootstrap cell.
+    - Use scripts/download_data.py for direct downloads.
+    - If direct download is unavailable, upload kc_house_data.csv and point DATA_DIR at the upload location.
+

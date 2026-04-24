@@ -33,6 +33,9 @@ outputs/reports/*
 !outputs/reports/final_results_master.json
 !outputs/reports/final_results_master.md
 !outputs/reports/final_results_master.csv
+!outputs/reports/candidate_v1_6_results.json
+!outputs/reports/candidate_v1_6_results.md
+!outputs/reports/candidate_v1_6_results.csv
 
 !outputs/final_report_pack/
 outputs/final_report_pack/*
@@ -45,6 +48,19 @@ outputs/final_report_pack/*
 !outputs/final_report_pack/06_caption_bank.md
 !outputs/final_report_pack/07_case_examples.csv
 !outputs/final_report_pack/08_core_metrics_table.tex
+!outputs/final_report_pack/09_error_by_segment.csv
+!outputs/final_report_pack/10_error_by_price_band.csv
+!outputs/final_report_pack/11_coverage_by_segment.csv
+!outputs/final_report_pack/12_coverage_by_price_band.csv
+!outputs/final_report_pack/13_anomaly_by_segment.csv
+!outputs/final_report_pack/14_anomaly_by_price_band.csv
+!outputs/final_report_pack/14_improved_segment_profiles.csv
+!outputs/final_report_pack/15_anomaly_casebook.csv
+!outputs/final_report_pack/16_interpretation_notes.md
+!outputs/final_report_pack/15_champion_challenger_comparison.csv
+!outputs/final_report_pack/16_geospatial_feature_notes.md
+!outputs/final_report_pack/17_slice_interpretation_notes.md
+!outputs/final_report_pack/18_upgrade_recommendation.md
 
 *.parquet
 *.pkl

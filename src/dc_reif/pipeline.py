@@ -7,29 +7,30 @@ import numpy as np
 import pandas as pd
 
 from dc_reif.anomaly import compute_pricing_anomalies
-from dc_reif.clustering import assign_submarket_segments, fit_submarket_clustering
 from dc_reif.config import ProjectConfig
-from dc_reif.data_cleaning import clean_king_county_data
 from dc_reif.data_download import download_dataset
-from dc_reif.data_ingestion import load_raw_data
-from dc_reif.data_validation import validate_schema, validation_report_frame
 from dc_reif.explainability import (
     build_top_driver_map,
     global_feature_importance,
     plot_feature_importance,
     shap_explanations,
 )
-from dc_reif.feature_engineering import assert_no_target_leakage, build_feature_matrix
+from dc_reif.feature_store import assert_no_target_leakage, build_feature_matrix
+from dc_reif.governance import clean_king_county_data, load_raw_data, validate_schema, validation_report_frame
+from dc_reif.market_representation import assign_submarket_segments, fit_submarket_clustering
+from dc_reif.property_ledger import build_property_ledger
 from dc_reif.reporting import create_eda_figures, save_dataframe, save_json, write_summary_report
-from dc_reif.splitting import chronological_split
 from dc_reif.uncertainty import build_prediction_intervals, conformal_quantile, evaluate_interval_quality
 from dc_reif.utils import get_logger, write_json
-from dc_reif.valuation import train_and_select_model
+from dc_reif.valuation_core import (
+    chronological_split,
+    train_and_select_model,
+)
 
 LOGGER = get_logger(__name__)
 
 
-def run_full_pipeline(config: ProjectConfig) -> dict[str, str]:
+def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = True) -> dict[str, str]:
     config.paths.ensure()
     dataset_path = config.data_dir / config.data_filename
     if not dataset_path.exists() or config.force_download:
@@ -48,9 +49,13 @@ def run_full_pipeline(config: ProjectConfig) -> dict[str, str]:
     write_json(config.paths.reports_dir / "cleaning_summary.json", cleaning_result.summary)
     save_dataframe(cleaned_df, config.cleaned_dataset_path)
 
-    feature_set = build_feature_matrix(cleaned_df)
+    feature_set = build_feature_matrix(cleaned_df, include_enhanced_features=include_enhanced_features)
     modeling_df = feature_set.dataframe.sort_values([config.date_column, config.id_column]).reset_index(drop=True)
-    cluster_artifacts = fit_submarket_clustering(modeling_df.iloc[: int(len(modeling_df) * config.train_fraction)].copy(), random_state=config.random_state)
+    cluster_artifacts = fit_submarket_clustering(
+        modeling_df.iloc[: int(len(modeling_df) * config.train_fraction)].copy(),
+        random_state=config.random_state,
+        include_enhanced_features=include_enhanced_features,
+    )
     modeling_df["segment_label"] = assign_submarket_segments(modeling_df, cluster_artifacts)
     predictive_features = feature_set.predictive_features + ["segment_label"]
     assert_no_target_leakage(predictive_features)
@@ -84,7 +89,7 @@ def run_full_pipeline(config: ProjectConfig) -> dict[str, str]:
         n_splits=config.n_splits,
         random_state=config.random_state,
     )
-    save_dataframe(valuation.model_comparison, config.paths.tables_dir / "model_comparison.csv")
+    save_dataframe(valuation.valuation_metrics, config.paths.tables_dir / "valuation_metrics.csv")
 
     fair_value_hat = pd.Series(np.nan, index=modeling_df.index, name="fair_value_hat")
     fair_value_hat.loc[valuation.fair_value_hat_oof.index] = valuation.fair_value_hat_oof
@@ -104,12 +109,17 @@ def run_full_pipeline(config: ProjectConfig) -> dict[str, str]:
     property_frame = pd.DataFrame(
         {
             "property_id": modeling_df[config.id_column].astype(str),
+            "sale_date": modeling_df[config.date_column].dt.strftime("%Y-%m-%d"),
+            "zipcode": modeling_df["zipcode"].astype(str),
             "observed_price": modeling_df[config.target_column],
             "fair_value_hat": intervals["fair_value_hat"],
             "lower_bound": intervals["lower_bound"],
             "upper_bound": intervals["upper_bound"],
             "interval_width": intervals["interval_width"],
             "segment_label": modeling_df["segment_label"],
+            "sqft_living": modeling_df["sqft_living"],
+            "grade": modeling_df["grade"],
+            "house_age": modeling_df["house_age"],
             "data_quality_flag": modeling_df["data_quality_flag"],
         }
     )
@@ -139,7 +149,8 @@ def run_full_pipeline(config: ProjectConfig) -> dict[str, str]:
         importance_df=importance_df,
         local_driver_map=local_driver_map,
     )
-    save_dataframe(property_frame, config.paths.tables_dir / "property_intelligence_table.csv")
+    property_ledger = build_property_ledger(property_frame)
+    save_dataframe(property_ledger, config.paths.tables_dir / "property_intelligence_table.csv")
 
     eda_figures = create_eda_figures(modeling_df, config.paths.figures_dir)
     save_json(manifest, config.paths.reports_dir / "raw_manifest_copy.json")
@@ -169,7 +180,7 @@ def run_full_pipeline(config: ProjectConfig) -> dict[str, str]:
         "validation_report_csv": str(validation_report_csv),
         "clean_dataset": str(config.cleaned_dataset_path),
         "feature_dataset": str(config.feature_dataset_path),
-        "model_comparison": str(config.paths.tables_dir / "model_comparison.csv"),
+        "valuation_metrics": str(config.paths.tables_dir / "valuation_metrics.csv"),
         "property_intelligence": str(config.paths.tables_dir / "property_intelligence_table.csv"),
         "feature_importance_plot": str(importance_plot),
         "summary_report": str(summary_report),

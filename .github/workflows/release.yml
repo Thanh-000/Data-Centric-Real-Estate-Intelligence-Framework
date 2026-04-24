@@ -1,0 +1,23 @@
+name: release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  package-metadata:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Archive architecture and reporting docs
+        uses: actions/upload-artifact@v4
+        with:
+          name: dc-reif-2.0-docs
+          path: |
+            README.md
+            docs/
+            outputs/reports/final_results_master.*
+            outputs/final_report_pack/
+

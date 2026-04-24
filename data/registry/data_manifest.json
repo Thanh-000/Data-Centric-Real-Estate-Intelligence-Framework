@@ -1,0 +1,11 @@
+{
+  "dataset": "King County House Sales",
+  "canonical_filename": "kc_house_data.csv",
+  "default_data_url": "https://raw.githubusercontent.com/randellmwania/Kings-County-Housing-Project/master/data/kc_house_data.csv",
+  "default_sha256": "970a5ee2b0294257cdb18952813df2dd05974f923a9a07ae17fa1af39da71dce",
+  "notes": [
+    "Raw runtime manifests are written to data/artifacts/raw_data_manifest.json.",
+    "Raw dataset files remain excluded from version control."
+  ]
+}
+

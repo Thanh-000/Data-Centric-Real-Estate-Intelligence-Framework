@@ -1,0 +1,33 @@
+{
+  "dataset": "King County House Sales",
+  "required_columns": [
+    "id",
+    "date",
+    "price",
+    "bedrooms",
+    "bathrooms",
+    "sqft_living",
+    "sqft_lot",
+    "floors",
+    "waterfront",
+    "view",
+    "condition",
+    "grade",
+    "sqft_above",
+    "sqft_basement",
+    "yr_built",
+    "yr_renovated",
+    "zipcode",
+    "lat",
+    "long",
+    "sqft_living15",
+    "sqft_lot15"
+  ],
+  "policy": {
+    "target_column": "price",
+    "target_derived_features_forbidden_in_predictive_path": true,
+    "train_only_preprocessing_required": true,
+    "oof_fair_values_required_for_anomaly_scoring": true
+  }
+}
+

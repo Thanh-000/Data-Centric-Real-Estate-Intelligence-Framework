@@ -1,9 +1,9 @@
 property_id,observed_price,fair_value_hat,lower_bound,upper_bound,segment_label,anomaly_flag,anomaly_score,top_drivers,data_quality_flag,valuation_interval
-6762700020,7700000.0,4605367.13,4450612.608002644,4760121.651256613,segment_5,potentially_over_valued,9.9985,"sqft_living, grade, long",suspect,4450612.61 to 4760121.65
-9208900037,6890000.0,4413516.9,4258762.38313492,4568271.426388888,segment_5,potentially_over_valued,8.0013,"sqft_living, grade, long",suspect,4258762.38 to 4568271.43
-7558700030,5300000.0,3264498.35,3109743.825992064,3419252.869246033,segment_5,potentially_over_valued,6.5765,"sqft_living, grade, waterfront",suspect,3109743.83 to 3419252.87
-3023069166,1140000.0,2890506.08,2735751.553637567,3045260.5968915354,segment_0,potentially_under_valued,-5.6558,"grade, sqft_living, lat",suspect,2735751.55 to 3045260.6
-2426039123,2420000.0,4103522.58,3948768.056535592,4258277.099789561,segment_5,potentially_under_valued,-5.4393,"grade, sqft_living, lat",suspect,3948768.06 to 4258277.1
-4379600030,1330000.0,2988773.58,2834019.0583994705,3143528.101653439,segment_5,potentially_under_valued,-5.3594,"grade, sqft_living, lat",suspect,2834019.06 to 3143528.1
-5470100220,222000.0,222001.15,67246.62675925923,376755.6700132277,segment_4,within_expected_range,-0.0,"grade, sqft_living, lat",ok,67246.63 to 376755.67
-123059127,625000.0,,,,segment_5,insufficient_history,,"grade, sqft_living, lat",ok,
+6762700020,7700000.0,4462991.0,4322521.875,4603460.125,segment_4,potentially_over_valued,11.5221,"grade_living_interaction, location_grade_interaction, distance_to_seattle_core",suspect,4322521.88 to 4603460.12
+9208900037,6890000.0,4231932.5,4091463.375,4372401.625,segment_1,potentially_over_valued,9.4614,"grade_living_interaction, location_grade_interaction, distance_to_seattle_core",suspect,4091463.38 to 4372401.62
+7558700030,5300000.0,3373380.25,3232911.125,3513849.375,segment_1,potentially_over_valued,6.8578,"grade_living_interaction, location_grade_interaction, distance_to_seattle_core",suspect,3232911.12 to 3513849.38
+2424059170,900000.0,2340601.0,2200131.875,2481070.125,segment_1,potentially_under_valued,-5.1278,"grade_living_interaction, location_grade_interaction, waterfront",suspect,2200131.88 to 2481070.12
+3262300555,2460000.0,3737143.5,3596674.375,3877612.625,segment_1,potentially_under_valued,-4.546,"grade_living_interaction, location_grade_interaction, waterfront",suspect,3596674.38 to 3877612.62
+9175600025,800000.0,1789474.5,1649005.375,1929943.625,segment_1,potentially_under_valued,-3.522,"grade_living_interaction, location_grade_interaction, waterfront",suspect,1649005.38 to 1929943.62
+7215721330,485000.0,484998.41,344529.28125,625467.53125,segment_1,within_expected_range,0.0,"grade_living_interaction, location_grade_interaction, waterfront",ok,344529.28 to 625467.53
+123059127,625000.0,,,,segment_1,insufficient_history,,"grade_living_interaction, location_grade_interaction, waterfront",ok,
