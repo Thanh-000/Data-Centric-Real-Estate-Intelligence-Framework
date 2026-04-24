@@ -37,8 +37,8 @@
 - Caption: Validation and holdout test metrics for the single official DC-REIF valuation model used in the final pricing anomaly workflow.
 
 ## Segmentation Summary Table
-- Title: KMeans Submarket Representation Summary
-- Caption: Cluster-level summary for the KMeans submarket encoding used as market-context representation within the valuation workflow.
+- Title: KMeans Contextual Market Grouping Summary
+- Caption: Cluster-level summary for the KMeans contextual market grouping used as market-context representation within the valuation workflow.
 
 ## Anomaly Summary Table
 - Title: Pricing Anomaly Category Counts

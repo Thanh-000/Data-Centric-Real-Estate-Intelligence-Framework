@@ -7,5 +7,5 @@
 - Keep `XGBoost` as the official valuation model unless the user explicitly changes the modeling scope.
 - Maintain the project as GitHub-ready and Colab-compatible: no hard-coded local paths and no committed raw dataset.
 - Preserve the automated download workflow with `aria2c` preference, checksum verification, and graceful fallback behavior.
-- Keep anomaly language aligned to sale-price data: use `Pricing Anomaly Detection` or `Valuation Gap Analysis`, not strict asking-price mispricing.
+- Keep anomaly language aligned to sale-price data: use `Pricing Anomaly Detection` or `Valuation Gap Analysis`, and avoid listing-side claim language.
 - Prefer small, modular, report-friendly code and lightweight CPU-friendly dependencies.

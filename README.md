@@ -1,73 +1,25 @@
-# DC-REIF: Final Dataset-Aligned Real Estate Intelligence System for King County
+# DC-REIF: Final Validated King County Real Estate Intelligence System
 
-This repository contains the single final validated DC-REIF implementation for the King County House Sales dataset. It is a student-scale, data-centric, trust-aware real estate intelligence project with one active valuation workflow, one active report-results layer, and one official sale-price Pricing Anomaly Detection output.
+## Project Overview
 
-The implemented system is intentionally narrow:
+This repository contains the final validated DC-REIF system for the King County House Sales dataset. The implementation is deliberately narrow, data-centric, and trust-aware: it focuses on one valuation core, one contextual market-grouping workflow, one uncertainty layer, and one report-ready decision-support output.
 
-- dataset: King County House Sales
-- official valuation model: `XGBoost`
-- segmentation: `KMeans`
-- uncertainty method: conformal residual-quantile intervals
-- decision product: **Pricing Anomaly Detection / Valuation Gap Analysis** on **sale-price** data
+The system operates on realized **sale-price** data only. Its downstream decision product is **Pricing Anomaly Detection / Valuation Gap Analysis** for observed sale transactions.
 
-Historical model comparisons and pre-consolidation artifacts are isolated under `archive/legacy_validation/` and are not part of the active workflow.
+## Final System Architecture
 
-## What Is Implemented
+The active workflow contains one public system only:
 
-### Data Governance
-- automated dataset download with checksum verification and `aria2c` fallback
-- raw-data manifest logging and schema validation
-- deterministic cleaning and data-quality flags
-- leakage-safe feature policy and train-only preprocessing
+- **Data governance and integrity:** automated download, checksum verification, schema validation, deterministic cleaning, and quality flags
+- **Feature policy:** leakage-safe structural, temporal, renovation, and geospatial-context features derived from the King County dataset only
+- **Valuation core:** `XGBoost`
+- **Contextual market grouping:** `KMeans` used as market-context encoding, not as a definitive market-boundary estimate
+- **Uncertainty layer:** localized conformal prediction residual quantile intervals
+- **Decision support:** report-ready Pricing Anomaly Detection on sale-price data with abstention for insufficient history
 
-### Market Representation
-- structural, spatial, temporal, renovation, and geospatial-context features derived from the King County dataset only
-- KMeans submarket representation and cluster profiling
+## Final Official Results
 
-### Valuation And Trust Layer
-- one official valuation model: `XGBoost`
-- chronological train / validation / test design
-- out-of-fold fair value estimates
-- conformal residual-quantile uncertainty intervals
-- sale-price Pricing Anomaly Detection with insufficient-history abstention
-- feature importance and optional SHAP outputs
-
-### Reporting Layer
-- one canonical `final_results_master` summary
-- one `final_report_pack` for report, slides, notebook, and GitHub documentation reuse
-- slice-level diagnostics by segment and price band
-
-## Repository Layout
-
-```text
-repo-root/
-|-- .github/
-|-- archive/
-|-- configs/
-|-- data/
-|-- docs/
-|-- notebooks/
-|-- outputs/
-|-- scripts/
-|-- src/dc_reif/
-|-- submission/
-`-- tests/
-```
-
-Main public entrypoints:
-
-- `python scripts/download_data.py`
-- `python scripts/run_pipeline.py`
-- `python scripts/build_report_results.py`
-- `python scripts/build_diagnostics.py`
-
-Main notebook:
-
-- `notebooks/01_dc_reif_king_county.ipynb`
-
-## Official Results
-
-The official metrics are documented in:
+The official metrics are stored in:
 
 - `docs/reporting/official_metrics.md`
 - `outputs/reports/final_results_master.json`
@@ -77,26 +29,28 @@ The official metrics are documented in:
 Current official values:
 
 - selected model: `xgboost`
-- validation RMSE: `110852.91`
-- test RMSE: `121629.66`
-- validation MAE: `65525.94`
-- test MAE: `70271.43`
-- validation R2: `0.8963`
-- test R2: `0.8957`
-- segment count: `6`
-- silhouette score: `0.1839`
-- davies-bouldin index: `1.6291`
-- interval method: `conformal_prediction_residual_quantile`
-- interval coverage: `0.8831`
-- average interval width: `280938.25`
-- conformal q-hat: `140469.12`
+- validation RMSE: `111003.71`
+- test RMSE: `118687.65`
+- validation MAE: `65533.19`
+- test MAE: `69904.96`
+- validation R2: `0.8960`
+- test R2: `0.9007`
+- segment count: `3`
+- silhouette score: `0.1774`
+- davies-bouldin index: `1.7775`
+- interval method: `conformal_prediction_residual_quantile_localized`
+- interval coverage: `0.9330`
+- average interval width: `372280.01`
+- conformal q-hat: `140076.25`
 - anomaly counts:
-  - within expected range: `16630`
-  - potentially over-valued: `1125`
-  - potentially under-valued: `781`
+  - within expected range: `17555`
+  - potentially over-valued: `665`
+  - potentially under-valued: `316`
   - insufficient history: `3061`
 
-## Setup
+## Local Setup
+
+Install dependencies:
 
 ```bash
 python -m pip install --upgrade pip
@@ -109,31 +63,13 @@ Or:
 make install
 ```
 
-## Automated Data Download
-
-Run:
+Download the dataset:
 
 ```bash
 python scripts/download_data.py
 ```
 
-Supported configuration:
-
-- `DATA_URL`
-- `DATA_FILENAME`
-- `DATA_DIR`
-- `DATA_CHECKSUM`
-- `USE_ARIA2`
-- `FORCE_DOWNLOAD`
-
-Behavior:
-
-- prefers `aria2c` when installed and enabled
-- falls back to `requests`, then `wget`, then `urllib`
-- verifies checksum for the default public mirror
-- fails clearly for auth-protected browser-only links
-
-## Run End-to-End
+Run the full workflow:
 
 ```bash
 python scripts/run_pipeline.py
@@ -142,7 +78,7 @@ python scripts/build_diagnostics.py
 python -m pytest -q
 ```
 
-Or with `make`:
+Equivalent `make` commands:
 
 ```bash
 make download
@@ -152,27 +88,56 @@ make diagnostics
 make test
 ```
 
-## Report-Ready Results Layer
+## Colab Setup
 
-Build the canonical results summary with:
+The repository is Colab-compatible by design.
 
-```bash
-python scripts/build_report_results.py
+Recommended Colab sequence:
+
+1. Clone the repository into `/content`.
+2. Install `requirements.txt`.
+3. Optionally install `aria2`.
+4. Run `python scripts/download_data.py`.
+5. Run `python scripts/run_pipeline.py`.
+6. Run `python scripts/build_report_results.py`.
+7. Run `python scripts/build_diagnostics.py`.
+8. Optionally run `python -m pytest -q`.
+
+If automatic download is unavailable, place `kc_house_data.csv` in a reachable data directory and point `DATA_DIR` to that location.
+
+## Repository Structure
+
+```text
+repo-root/
+|-- .github/
+|-- configs/
+|-- data/
+|-- docs/
+|-- notebooks/
+|-- outputs/
+|-- scripts/
+|-- src/dc_reif/
+|-- submission/
+`-- tests/
 ```
 
-Build the report diagnostics pack with:
+Primary entrypoints:
 
-```bash
-python scripts/build_diagnostics.py
-```
+- `python scripts/download_data.py`
+- `python scripts/run_pipeline.py`
+- `python scripts/build_report_results.py`
+- `python scripts/build_diagnostics.py`
+- `notebooks/01_dc_reif_king_county.ipynb`
 
-Canonical source-of-truth artifacts:
+## Official Result Artifacts
+
+Canonical summary artifacts:
 
 - `outputs/reports/final_results_master.json`
 - `outputs/reports/final_results_master.md`
 - `outputs/reports/final_results_master.csv`
 
-Core report-pack artifacts:
+Core report pack artifacts:
 
 - `outputs/final_report_pack/01_core_metrics.md`
 - `outputs/final_report_pack/02_results_summary_table.csv`
@@ -192,63 +157,30 @@ Core report-pack artifacts:
 - `outputs/final_report_pack/15_anomaly_casebook.csv`
 - `outputs/final_report_pack/16_interpretation_notes.md`
 - `outputs/final_report_pack/17_geospatial_feature_notes.md`
+- `outputs/final_report_pack/18_selected_xgboost_parameters.md`
+- `outputs/final_report_pack/19_segmentation_selection_summary.md`
+- `outputs/final_report_pack/20_local_conformal_summary.md`
 
-## Google Colab
+## Methodological Safeguards
 
-The repository remains Colab-compatible by design.
-
-Suggested Colab sequence:
-
-1. Clone the repository into `/content`.
-2. Install `requirements.txt`.
-3. Optionally install `aria2` with `apt-get`.
-4. Run `python scripts/download_data.py`.
-5. Run `python scripts/run_pipeline.py`.
-6. Run `python scripts/build_report_results.py`.
-7. Run `python scripts/build_diagnostics.py`.
-8. Optionally run `python -m pytest -q`.
-
-If automatic download is unavailable, upload `kc_house_data.csv` manually and point `DATA_DIR` at the upload location. The project does not require text, image, remote-sensing, or external API inputs.
-
-## Docs
-
-Reporting references:
-
-- `docs/reporting/figure_inventory.md`
-- `docs/reporting/table_inventory.md`
-- `docs/reporting/official_metrics.md`
-
-Future architecture notes and retired comparison material:
-
-- `docs/roadmap/`
-- `archive/legacy_validation/`
-
-## Repository Hygiene
-
-- raw data remains excluded from version control
-- generated outputs remain ignored except for intentional small summary artifacts
-- line endings are normalized via `.gitattributes`
-- GitHub workflows and templates are included under `.github/`
+- No target-derived variables such as `price_per_sqft` are used in the predictive branch.
+- All preprocessing, clustering transforms, and learned mappings are fit on training data or training folds only.
+- Out-of-fold fair values are used for anomaly analysis.
+- The anomaly layer is framed for sale-price valuation gaps, not for listing-side decisions.
+- The data download workflow preserves checksum verification and graceful fallback behavior.
 
 ## Limitations
 
-- The implemented system remains student-scale and tabular.
-- Pricing anomaly outputs must not be described as strict asking-price mispricing.
-- The implementation is dataset-aligned, not multimodal, listing-aware, or causal.
-- The official system uses one final validated valuation model rather than a live model-zoo workflow.
+- The repository is intentionally scoped to the King County House Sales dataset.
+- The system is tabular and CPU-friendly.
+- KMeans provides contextual market grouping rather than a definitive market-boundary estimate.
+- The uncertainty layer is practical and lightweight rather than fully heteroscedastic.
+- The decision layer supports sale-price valuation-gap analysis; it should not be treated as a listing-price policy tool.
 
-## Convenience Commands
+## Future Work
 
-```bash
-make install
-make download
-make run
-make report-results
-make diagnostics
-make market-representation
-make uncertainty-calibration
-make notebook
-make test
-make smoke
-make clean
-```
+Potential future work, not implemented here:
+
+- richer spatial diagnostics within the same dataset scope
+- deeper calibration analysis for difficult slices such as the upper price band
+- more extensive decision-support reporting for lecturer-facing presentation materials

@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: install download run report-results diagnostics market-representation uncertainty-calibration notebook test smoke clean
+.PHONY: install download run report-results diagnostics notebook test smoke clean
 
 install:
 	$(PYTHON) -m pip install --upgrade pip
@@ -17,12 +17,6 @@ report-results:
 
 diagnostics:
 	$(PYTHON) scripts/build_diagnostics.py
-
-market-representation:
-	$(PYTHON) scripts/run_market_representation.py
-
-uncertainty-calibration:
-	$(PYTHON) scripts/run_uncertainty_calibration.py
 
 notebook:
 	$(PYTHON) -m notebook notebooks/01_dc_reif_king_county.ipynb

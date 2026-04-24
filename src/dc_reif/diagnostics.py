@@ -250,8 +250,14 @@ def anomaly_casebook(dataframe: pd.DataFrame) -> pd.DataFrame:
         "upper_bound",
         "segment_label",
         "price_band",
+        "predicted_price_band",
         "anomaly_flag",
         "anomaly_score",
+        "support_score",
+        "slice_risk_level",
+        "confidence_note",
+        "why_flagged",
+        "evidence_strength",
         "top_drivers",
         "data_quality_flag",
     ]
@@ -321,12 +327,14 @@ def slice_interpretation_notes(
     error_by_segment = diagnostics["error_by_segment"]
     error_by_price_band = diagnostics["error_by_price_band"]
     coverage_by_segment = diagnostics["coverage_by_segment"]
+    coverage_by_price_band = diagnostics["coverage_by_price_band"]
     anomaly_by_segment = diagnostics["anomaly_by_segment"]
     anomaly_by_price_band = diagnostics["anomaly_by_price_band"]
 
     highest_mae_segment = error_by_segment.sort_values("mae", ascending=False).iloc[0]
     lowest_mae_segment = error_by_segment.sort_values("mae", ascending=True).iloc[0]
     weakest_price_band = error_by_price_band.sort_values("mae", ascending=False).iloc[0]
+    weakest_coverage_price_band = coverage_by_price_band.sort_values("empirical_coverage", ascending=True).iloc[0]
     lowest_coverage_segment = coverage_by_segment.sort_values("empirical_coverage", ascending=True).iloc[0]
     anomaly_hotspot = anomaly_by_segment.sort_values("over_rate", ascending=False).iloc[0]
     price_band_hotspot = anomaly_by_price_band.sort_values("over_rate", ascending=False).iloc[0]
@@ -347,6 +355,10 @@ def slice_interpretation_notes(
             f"- Weakest price band by MAE is `{weakest_price_band['price_band']}` at {weakest_price_band['mae']:.2f}."
         ),
         (
+            f"- Weakest price-band coverage appears in `{weakest_coverage_price_band['price_band']}` at "
+            f"{weakest_coverage_price_band['empirical_coverage']:.4f}."
+        ),
+        (
             f"- Lowest segment coverage appears in `{lowest_coverage_segment['segment_label']}` at "
             f"{lowest_coverage_segment['empirical_coverage']:.4f}."
         ),
@@ -359,7 +371,7 @@ def slice_interpretation_notes(
     lines.extend(
         [
             "",
-            "These diagnostics support sale-price Pricing Anomaly Detection and should not be interpreted as strict asking-price mispricing estimates.",
+            "These diagnostics support sale-price Pricing Anomaly Detection and should be read as valuation-gap evidence for realized transactions.",
         ]
     )
     return "\n".join(lines)

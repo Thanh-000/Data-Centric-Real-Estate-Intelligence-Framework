@@ -22,6 +22,9 @@ def test_diagnostics_pack_writes_report_ready_slice_outputs(sample_dataframe, te
         "pack_anomaly_casebook",
         "pack_interpretation_notes",
         "pack_geospatial_notes",
+        "pack_xgboost_parameters",
+        "pack_segmentation_selection",
+        "pack_local_conformal",
     ]
     for artifact_key in required_artifacts:
         assert artifacts[artifact_key].exists()
@@ -34,4 +37,4 @@ def test_diagnostics_pack_writes_report_ready_slice_outputs(sample_dataframe, te
     assert {"segment_label", "count", "mae", "rmse"}.issubset(error_by_segment.columns)
     assert {"price_band", "empirical_coverage", "average_interval_width"}.issubset(coverage_by_price_band.columns)
     assert {"price_band", "potentially_over_valued", "over_rate"}.issubset(anomaly_by_price_band.columns)
-    assert {"property_id", "observed_price", "segment_label", "anomaly_flag"}.issubset(anomaly_casebook.columns)
+    assert {"property_id", "observed_price", "segment_label", "anomaly_flag", "support_score"}.issubset(anomaly_casebook.columns)

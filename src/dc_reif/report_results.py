@@ -56,12 +56,7 @@ def _read_csv(path: Path, label: str) -> pd.DataFrame:
 
 def _load_valuation_metrics(paths: ReportResultsPaths) -> pd.DataFrame:
     official_metrics_path = paths.tables_dir / "valuation_metrics.csv"
-    if official_metrics_path.exists():
-        return _read_csv(official_metrics_path, "valuation metrics table")
-
-    legacy_path = paths.tables_dir / "model_comparison.csv"
-    legacy = _read_csv(legacy_path, "legacy model comparison table")
-    return legacy.sort_values("validation_rmse").head(1).reset_index(drop=True)
+    return _read_csv(official_metrics_path, "valuation metrics table")
 
 
 def _flatten_summary(summary: dict[str, Any]) -> pd.DataFrame:
@@ -92,31 +87,38 @@ def _build_case_examples(property_df: pd.DataFrame, n_per_extreme: int = 3) -> p
         "lower_bound",
         "upper_bound",
         "segment_label",
+        "predicted_price_band",
         "anomaly_flag",
         "anomaly_score",
+        "support_score",
+        "slice_risk_level",
+        "confidence_note",
+        "why_flagged",
+        "evidence_strength",
         "top_drivers",
         "data_quality_flag",
     ]
+    available_columns = [column for column in columns if column in property_df.columns]
     working = property_df.copy()
     working["abs_anomaly_score"] = working["anomaly_score"].abs()
 
     over = (
-        working.loc[working["anomaly_flag"] == "potentially_over_valued", columns + ["abs_anomaly_score"]]
+        working.loc[working["anomaly_flag"] == "potentially_over_valued", available_columns + ["abs_anomaly_score"]]
         .sort_values("abs_anomaly_score", ascending=False)
         .head(n_per_extreme)
     )
     under = (
-        working.loc[working["anomaly_flag"] == "potentially_under_valued", columns + ["abs_anomaly_score"]]
+        working.loc[working["anomaly_flag"] == "potentially_under_valued", available_columns + ["abs_anomaly_score"]]
         .sort_values("abs_anomaly_score", ascending=False)
         .head(n_per_extreme)
     )
     within = (
-        working.loc[working["anomaly_flag"] == "within_expected_range", columns + ["abs_anomaly_score"]]
+        working.loc[working["anomaly_flag"] == "within_expected_range", available_columns + ["abs_anomaly_score"]]
         .sort_values("abs_anomaly_score", ascending=True)
         .head(1)
     )
     insufficient = (
-        working.loc[working["anomaly_flag"] == "insufficient_history", columns + ["abs_anomaly_score"]]
+        working.loc[working["anomaly_flag"] == "insufficient_history", available_columns + ["abs_anomaly_score"]]
         .head(1)
     )
 
@@ -143,6 +145,7 @@ def build_final_results_summary(config: ProjectConfig | None = None) -> dict[str
     property_intelligence = _read_csv(paths.tables_dir / "property_intelligence_table.csv", "property intelligence table")
     cluster_summary = _read_json(paths.reports_dir / "cluster_summary.json", "cluster summary report")
     uncertainty_metrics = _read_json(paths.reports_dir / "uncertainty_metrics.json", "uncertainty summary report")
+    local_conformal_summary = _optional_json(paths.reports_dir / "local_conformal_calibration_summary.json")
 
     selected_row = valuation_metrics.iloc[0]
 
@@ -166,6 +169,19 @@ def build_final_results_summary(config: ProjectConfig | None = None) -> dict[str
         paths.tables_dir / "feature_importance.csv",
         paths.tables_dir / "property_intelligence_table.csv",
     ]
+    upstream_reports = [
+        _relative_to_project(paths.reports_dir / "cluster_summary.json", config.project_root),
+        _relative_to_project(paths.reports_dir / "uncertainty_metrics.json", config.project_root),
+        _relative_to_project(paths.reports_dir / "pipeline_summary.md", config.project_root),
+    ]
+    for optional_name in [
+        "xgboost_selection_summary.json",
+        "segmentation_selection_summary.json",
+        "local_conformal_calibration_summary.json",
+    ]:
+        optional_path = paths.reports_dir / optional_name
+        if optional_path.exists():
+            upstream_reports.append(_relative_to_project(optional_path, config.project_root))
 
     summary = {
         "project": {
@@ -173,7 +189,7 @@ def build_final_results_summary(config: ProjectConfig | None = None) -> dict[str
             "framework": "DC-REIF",
             "dataset": "King County House Sales",
             "generated_at_utc": utc_timestamp(),
-            "freeze_status": "official_frozen_results",
+            "freeze_status": "final_validated_results",
         },
         "core_valuation_metrics": {
             "selected_model": str(selected_row["model_name"]),
@@ -192,7 +208,11 @@ def build_final_results_summary(config: ProjectConfig | None = None) -> dict[str
             "segment_profile_count": int(len(cluster_profiles)),
         },
         "uncertainty_results": {
-            "interval_method": "conformal_prediction_residual_quantile",
+            "interval_method": (
+                local_conformal_summary.get("interval_method")
+                if local_conformal_summary
+                else "conformal_prediction_residual_quantile"
+            ),
             "interval_coverage": format_float(float(uncertainty_metrics["empirical_coverage"]), digits=4),
             "average_interval_width": format_float(float(uncertainty_metrics["average_interval_width"]), digits=2),
             "conformal_qhat": format_float(float(uncertainty_metrics["q_hat"]), digits=2),
@@ -216,11 +236,7 @@ def build_final_results_summary(config: ProjectConfig | None = None) -> dict[str
             "final_property_intelligence_table": _relative_to_project(
                 paths.tables_dir / "property_intelligence_table.csv", config.project_root
             ),
-            "upstream_reports": [
-                _relative_to_project(paths.reports_dir / "cluster_summary.json", config.project_root),
-                _relative_to_project(paths.reports_dir / "uncertainty_metrics.json", config.project_root),
-                _relative_to_project(paths.reports_dir / "pipeline_summary.md", config.project_root),
-            ],
+            "upstream_reports": upstream_reports,
         },
     }
     return summary
@@ -359,8 +375,8 @@ def _caption_bank() -> str:
             "- Caption: Validation and holdout test metrics for the single official DC-REIF valuation model used in the final pricing anomaly workflow.",
             "",
             "## Segmentation Summary Table",
-            "- Title: KMeans Submarket Representation Summary",
-            "- Caption: Cluster-level summary for the KMeans submarket encoding used as market-context representation within the valuation workflow.",
+            "- Title: KMeans Contextual Market Grouping Summary",
+            "- Caption: Cluster-level summary for the KMeans contextual market grouping used as market-context representation within the valuation workflow.",
             "",
             "## Anomaly Summary Table",
             "- Title: Pricing Anomaly Category Counts",
@@ -393,7 +409,7 @@ def _selected_tables_manifest(summary: dict[str, Any]) -> str:
     lines = ["# Selected Tables Manifest", ""]
     usage = {
         "valuation_metrics.csv": "Official validation and holdout performance table for the single active valuation model.",
-        "cluster_profiles.csv": "Segmentation reference table for submarket context.",
+        "cluster_profiles.csv": "Segmentation reference table for contextual market grouping.",
         "feature_importance.csv": "Explainability reference table for top global drivers.",
         "property_intelligence_table.csv": "Master property-level output table for anomaly analysis and case selection.",
     }
@@ -407,6 +423,60 @@ def _write_text(path: Path, content: str) -> Path:
     ensure_directory(path.parent)
     path.write_text(content, encoding="utf-8")
     return path
+
+
+def _optional_json(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _xgboost_parameters_block(payload: dict[str, Any] | None) -> str:
+    if not payload:
+        return "# Selected XGBoost Parameters\n\nNo XGBoost selection summary was found."
+    lines = [
+        "# Selected XGBoost Parameters",
+        "",
+        f"- Selected model: `{payload.get('selected_model', 'xgboost')}`",
+        f"- Target strategy: `{payload.get('target_strategy', 'raw')}`",
+        f"- High-price sample weight: `{payload.get('high_price_weight', 1.0)}`",
+        "",
+        "## Parameters",
+    ]
+    lines.extend(f"- `{key}`: `{value}`" for key, value in payload.get("selected_parameters", {}).items())
+    return "\n".join(lines)
+
+
+def _segmentation_summary_block(payload: dict[str, Any] | None) -> str:
+    if not payload:
+        return "# Segmentation Selection Summary\n\nNo segmentation selection summary was found."
+    details = payload.get("selection_details", {})
+    lines = [
+        "# Segmentation Selection Summary",
+        "",
+        f"- Selected K: `{payload.get('selected_k')}`",
+        f"- Silhouette score: `{format_float(float(details.get('silhouette_score', 0.0)), digits=4)}`",
+        f"- Davies-Bouldin index: `{format_float(float(details.get('davies_bouldin_index', 0.0)), digits=4)}`",
+        f"- Balance score: `{format_float(float(details.get('balance_score', 0.0)), digits=4)}`",
+        f"- Small-cluster share: `{format_float(float(details.get('small_cluster_share', 0.0)), digits=4)}`",
+    ]
+    return "\n".join(lines)
+
+
+def _local_conformal_block(payload: dict[str, Any] | None) -> str:
+    if not payload:
+        return "# Local Conformal Calibration Summary\n\nNo local conformal calibration summary was found."
+    lines = [
+        "# Local Conformal Calibration Summary",
+        "",
+        f"- Interval method: `{payload.get('interval_method')}`",
+        f"- Global q-hat: `{format_float(float(payload.get('global_q_hat', 0.0)), digits=2)}`",
+        f"- Average localized q-hat: `{format_float(float(payload.get('average_local_q_hat', 0.0)), digits=2)}`",
+        f"- Global empirical coverage: `{format_float(float(payload.get('global_empirical_coverage', 0.0)), digits=4)}`",
+        f"- Q5 empirical coverage: `{format_float(float(payload.get('q5_empirical_coverage', 0.0)), digits=4)}`",
+        f"- Global average interval width: `{format_float(float(payload.get('global_average_interval_width', 0.0)), digits=2)}`",
+    ]
+    return "\n".join(lines)
 
 
 def build_report_results_pack(config: ProjectConfig | None = None) -> dict[str, Path]:
@@ -482,4 +552,16 @@ def build_report_results_pack(config: ProjectConfig | None = None) -> dict[str, 
     anomaly_summary_rows.to_csv(artifacts["pack_anomaly_table"], index=False)
     case_examples.to_csv(artifacts["pack_case_examples"], index=False)
     artifacts.update(build_diagnostics_artifacts(config, summary=summary))
+    artifacts["pack_xgboost_parameters"] = _write_text(
+        paths.final_pack_dir / "18_selected_xgboost_parameters.md",
+        _xgboost_parameters_block(_optional_json(paths.reports_dir / "xgboost_selection_summary.json")),
+    )
+    artifacts["pack_segmentation_selection"] = _write_text(
+        paths.final_pack_dir / "19_segmentation_selection_summary.md",
+        _segmentation_summary_block(_optional_json(paths.reports_dir / "segmentation_selection_summary.json")),
+    )
+    artifacts["pack_local_conformal"] = _write_text(
+        paths.final_pack_dir / "20_local_conformal_summary.md",
+        _local_conformal_block(_optional_json(paths.reports_dir / "local_conformal_calibration_summary.json")),
+    )
     return artifacts

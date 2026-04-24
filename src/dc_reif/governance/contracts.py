@@ -14,7 +14,7 @@ REQUIRED_SCHEMA_CONTRACT = {
         "oof_fair_values_required_for_anomaly_scoring": True,
     },
     "notes": [
-        "Sale-price dataset only; do not relabel outputs as strict asking-price mispricing.",
+        "Sale-price dataset only; keep outputs framed as valuation-gap analysis for realized transactions.",
         "Target-derived variables are excluded from the predictive branch.",
     ],
 }

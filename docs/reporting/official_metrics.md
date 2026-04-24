@@ -1,25 +1,23 @@
 # Official Metrics
 
-The following results define the single official DC-REIF system for the current dataset-aligned implementation.
+The following results define the single official final validated DC-REIF system for the current King County implementation.
 
 - selected model: `xgboost`
-- validation RMSE: `110852.91`
-- test RMSE: `121629.66`
-- validation MAE: `65525.94`
-- test MAE: `70271.43`
-- validation R2: `0.8963`
-- test R2: `0.8957`
-- segment count: `6`
-- silhouette score: `0.1839`
-- davies_bouldin_index: `1.6291`
-- interval method: `conformal_prediction_residual_quantile`
-- interval coverage: `0.8831`
-- average interval width: `280938.25`
-- conformal q-hat: `140469.12`
+- validation RMSE: `111003.71`
+- test RMSE: `118687.65`
+- validation MAE: `65533.19`
+- test MAE: `69904.96`
+- validation R2: `0.8960`
+- test R2: `0.9007`
+- segment count: `3`
+- silhouette score: `0.1774`
+- davies_bouldin_index: `1.7775`
+- interval method: `conformal_prediction_residual_quantile_localized`
+- interval coverage: `0.9330`
+- average interval width: `372280.01`
+- conformal q-hat: `140076.25`
 - anomaly counts:
-  - within expected range: `16630`
-  - potentially over-valued: `1125`
-  - potentially under-valued: `781`
+  - within expected range: `17555`
+  - potentially over-valued: `665`
+  - potentially under-valued: `316`
   - insufficient history: `3061`
-
-Legacy baseline-versus-candidate comparison material is archived under `archive/legacy_validation/`.

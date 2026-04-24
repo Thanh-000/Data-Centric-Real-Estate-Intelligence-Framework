@@ -1,10 +1,11 @@
 # Slice Interpretation Notes
 
 ## Official System
-- The official valuation model is `xgboost` with validation/test RMSE 110852.91 / 121629.66.
-- Highest segment MAE remains `segment_4` at 114710.05; lowest segment MAE is `segment_0` at 34226.69.
-- Weakest price band by MAE is `Q5` at 144661.67.
-- Lowest segment coverage appears in `segment_4` at 0.7508.
-- Highest over-valued anomaly rate by segment is `segment_4` at 0.132; by price band it is `Q5` at 0.209.
+- The official valuation model is `xgboost` with validation/test RMSE 111003.71 / 118687.65.
+- Highest segment MAE remains `segment_1` at 114671.59; lowest segment MAE is `segment_2` at 35243.26.
+- Weakest price band by MAE is `Q5` at 144298.74.
+- Weakest price-band coverage appears in `Q5` at 0.8536.
+- Lowest segment coverage appears in `segment_1` at 0.9213.
+- Highest over-valued anomaly rate by segment is `segment_1` at 0.044; by price band it is `Q5` at 0.103.
 
-These diagnostics support sale-price Pricing Anomaly Detection and should not be interpreted as strict asking-price mispricing estimates.
+These diagnostics support sale-price Pricing Anomaly Detection and should be read as valuation-gap evidence for realized transactions.

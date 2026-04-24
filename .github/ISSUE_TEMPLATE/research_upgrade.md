@@ -1,6 +1,6 @@
 ---
 name: Research upgrade
-about: Propose a future DC-REIF research enhancement without changing the frozen baseline
+about: Propose a future DC-REIF research enhancement without changing the final validated system
 title: "[Research Upgrade] "
 labels: research
 assignees: ""

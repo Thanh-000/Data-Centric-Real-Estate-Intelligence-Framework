@@ -1,22 +1,22 @@
 {
   "core_valuation_metrics": {
     "selected_model": "xgboost",
-    "test_mae": 70271.43,
-    "test_r2": 0.8957,
-    "test_rmse": 121629.66,
-    "validation_mae": 65525.94,
-    "validation_r2": 0.8963,
-    "validation_rmse": 110852.91
+    "test_mae": 69904.96,
+    "test_r2": 0.9007,
+    "test_rmse": 118687.65,
+    "validation_mae": 65533.19,
+    "validation_r2": 0.896,
+    "validation_rmse": 111003.71
   },
   "explainability_results": {
     "feature_importance_file": "outputs/tables/feature_importance.csv",
     "shap_summary_file": "outputs/figures/shap_summary.png",
     "top_features": [
-      "grade_living_interaction",
       "location_grade_interaction",
+      "grade_living_interaction",
+      "segment_label_segment_1",
       "waterfront",
-      "distance_to_seattle_core",
-      "waterfront_view_score"
+      "distance_to_seattle_core"
     ]
   },
   "output_references": {
@@ -38,33 +38,36 @@
     "upstream_reports": [
       "outputs/reports/cluster_summary.json",
       "outputs/reports/uncertainty_metrics.json",
-      "outputs/reports/pipeline_summary.md"
+      "outputs/reports/pipeline_summary.md",
+      "outputs/reports/xgboost_selection_summary.json",
+      "outputs/reports/segmentation_selection_summary.json",
+      "outputs/reports/local_conformal_calibration_summary.json"
     ]
   },
   "pricing_anomaly_results": {
     "insufficient_history": 3061,
-    "potentially_over_valued": 1125,
-    "potentially_under_valued": 781,
-    "within_expected_range": 16630
+    "potentially_over_valued": 665,
+    "potentially_under_valued": 316,
+    "within_expected_range": 17555
   },
   "project": {
     "dataset": "King County House Sales",
     "framework": "DC-REIF",
-    "freeze_status": "official_frozen_results",
-    "generated_at_utc": "2026-04-23T20:57:38.517357+00:00",
+    "freeze_status": "final_validated_results",
+    "generated_at_utc": "2026-04-24T13:48:44.353469+00:00",
     "title": "Beyond Price Prediction: DC-REIF for King County"
   },
   "segmentation_results": {
-    "davies_bouldin_index": 1.6291,
-    "segment_count": 6,
-    "segment_profile_count": 6,
+    "davies_bouldin_index": 1.7775,
+    "segment_count": 3,
+    "segment_profile_count": 3,
     "segment_summary_reference": "outputs/tables/cluster_profiles.csv",
-    "silhouette_score": 0.1839
+    "silhouette_score": 0.1774
   },
   "uncertainty_results": {
-    "average_interval_width": 280938.25,
-    "conformal_qhat": 140469.12,
-    "interval_coverage": 0.8831,
-    "interval_method": "conformal_prediction_residual_quantile"
+    "average_interval_width": 372280.01,
+    "conformal_qhat": 140076.25,
+    "interval_coverage": 0.933,
+    "interval_method": "conformal_prediction_residual_quantile_localized"
   }
 }
