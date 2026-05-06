@@ -11,12 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Archive architecture and reporting docs
+      - name: Archive framework docs
         uses: actions/upload-artifact@v4
         with:
-          name: dc-reif-final-submission-docs
+          name: dc-reif-framework-docs
           path: |
             README.md
             docs/
-            outputs/reports/final_results_master.*
-            outputs/final_report_pack/

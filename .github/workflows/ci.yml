@@ -19,6 +19,3 @@ jobs:
           python -m pip install -r requirements.txt
       - name: Run tests
         run: python -m pytest -q
-      - name: Build report-ready artifacts from frozen outputs
-        run: python scripts/build_report_results.py
-

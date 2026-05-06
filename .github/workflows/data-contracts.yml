@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - "data/registry/**"
+      - "configs/data_contracts/**"
       - "src/dc_reif/governance/**"
       - ".github/workflows/data-contracts.yml"
 
@@ -16,16 +16,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Validate data registry files
+      - name: Validate data contract files
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
           for path in [
-              Path("data/registry/data_manifest.json"),
-              Path("data/registry/schema_contract.json"),
+              Path("configs/data_contracts/data_manifest.json"),
+              Path("configs/data_contracts/schema_contract.json"),
           ]:
               payload = json.loads(path.read_text(encoding="utf-8"))
               print(path, sorted(payload.keys()))
           PY
-

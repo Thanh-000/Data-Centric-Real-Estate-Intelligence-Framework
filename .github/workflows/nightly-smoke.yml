@@ -22,6 +22,3 @@ jobs:
         run: python scripts/download_data.py
       - name: Run pipeline
         run: python scripts/run_pipeline.py
-      - name: Build report results
-        run: python scripts/build_report_results.py
-

@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This repository contains the final validated DC-REIF system for the King County House Sales dataset. The implementation is deliberately narrow, data-centric, and trust-aware: it focuses on one valuation core, one contextual market-grouping workflow, one uncertainty layer, and one report-ready decision-support output.
+This repository contains the final validated DC-REIF system framework for the King County House Sales dataset. The implementation is deliberately narrow, data-centric, and trust-aware: it focuses on one valuation core, one contextual market-grouping workflow, one uncertainty layer, and one decision-support output.
 
 The system operates on realized **sale-price** data only. Its downstream decision product is **Pricing Anomaly Detection / Valuation Gap Analysis** for observed sale transactions.
 
@@ -15,18 +15,18 @@ The active workflow contains one public system only:
 - **Valuation core:** `XGBoost`
 - **Contextual market grouping:** `KMeans` used as market-context encoding, not as a definitive market-boundary estimate
 - **Uncertainty layer:** localized conformal prediction residual quantile intervals
-- **Decision support:** report-ready Pricing Anomaly Detection on sale-price data with abstention for insufficient history
+- **Decision support:** Pricing Anomaly Detection on sale-price data with abstention for insufficient history
 
-## Final Official Results
+## Reference Results
 
-The official metrics are stored in:
+This repository is distributed as a runnable framework. Generated datasets, model artifacts, figures, tables, reports, and final narrative materials are not committed; users reproduce technical outputs by running the quickstart or manual workflow. The team assembles final narrative materials separately at the end.
 
-- `docs/reporting/official_metrics.md`
-- `outputs/reports/final_results_master.json`
-- `outputs/reports/final_results_master.md`
-- `outputs/reports/final_results_master.csv`
+Reference metrics from the validated run are stored in:
 
-Current official values:
+- `docs/reference_metrics.md`
+- `docs/model.md`
+
+Expected reference values:
 
 - selected model: `xgboost`
 - validation RMSE: `111003.71`
@@ -63,18 +63,34 @@ Or:
 make install
 ```
 
-Download the dataset:
+For a first local verification run, use the one-command quickstart. It downloads the public King County dataset and runs the pipeline:
+
+```bash
+python scripts/quickstart.py --install
+```
+
+Equivalent `make` command:
+
+```bash
+make quickstart
+```
+
+To include the test suite in the same run:
+
+```bash
+python scripts/quickstart.py --install --with-tests
+```
+
+Manual dataset download:
 
 ```bash
 python scripts/download_data.py
 ```
 
-Run the full workflow:
+Manual full workflow:
 
 ```bash
 python scripts/run_pipeline.py
-python scripts/build_report_results.py
-python scripts/build_diagnostics.py
 python -m pytest -q
 ```
 
@@ -83,8 +99,6 @@ Equivalent `make` commands:
 ```bash
 make download
 make run
-make report-results
-make diagnostics
 make test
 ```
 
@@ -94,14 +108,11 @@ The repository is Colab-compatible by design.
 
 Recommended Colab sequence:
 
-1. Clone the repository into `/content`.
-2. Install `requirements.txt`.
-3. Optionally install `aria2`.
-4. Run `python scripts/download_data.py`.
-5. Run `python scripts/run_pipeline.py`.
-6. Run `python scripts/build_report_results.py`.
-7. Run `python scripts/build_diagnostics.py`.
-8. Optionally run `python -m pytest -q`.
+1. Open `notebooks/01_dc_reif_king_county.ipynb` from the repository, or upload/open the notebook directly in Colab.
+2. Run the notebook from top to bottom. If the notebook is launched standalone in Colab, the setup cell clones this repository automatically.
+3. The setup cell installs `requirements.txt`, installs `aria2` in Colab when available, and makes the package importable. It does not mount Google Drive.
+4. The data cell downloads the public King County dataset through the project downloader, preferring `aria2`.
+5. Optionally run `python -m pytest -q` after the notebook or script workflow.
 
 If automatic download is unavailable, place `kc_house_data.csv` in a reachable data directory and point `DATA_DIR` to that location.
 
@@ -117,7 +128,6 @@ repo-root/
 |-- outputs/
 |-- scripts/
 |-- src/dc_reif/
-|-- submission/
 `-- tests/
 ```
 
@@ -125,41 +135,37 @@ Primary entrypoints:
 
 - `python scripts/download_data.py`
 - `python scripts/run_pipeline.py`
-- `python scripts/build_report_results.py`
-- `python scripts/build_diagnostics.py`
 - `notebooks/01_dc_reif_king_county.ipynb`
 
-## Official Result Artifacts
+## Model Layer
 
-Canonical summary artifacts:
+The model is code-defined and trained at runtime, not committed as a binary artifact. The official valuation core is XGBoost, implemented in `src/dc_reif/valuation.py` and called by `src/dc_reif/pipeline.py`.
 
-- `outputs/reports/final_results_master.json`
-- `outputs/reports/final_results_master.md`
-- `outputs/reports/final_results_master.csv`
+After running the workflow, fitted artifacts such as `data/artifacts/xgboost_pipeline.joblib` are generated locally and ignored by Git. See `docs/model.md` for the model layout and artifact policy.
 
-Core report pack artifacts:
+## Static Contracts vs Runtime Data
 
-- `outputs/final_report_pack/01_core_metrics.md`
-- `outputs/final_report_pack/02_results_summary_table.csv`
-- `outputs/final_report_pack/03_anomaly_summary_table.csv`
-- `outputs/final_report_pack/04_selected_figures_manifest.md`
-- `outputs/final_report_pack/05_selected_tables_manifest.md`
-- `outputs/final_report_pack/06_caption_bank.md`
-- `outputs/final_report_pack/07_case_examples.csv`
-- `outputs/final_report_pack/08_core_metrics_table.tex`
-- `outputs/final_report_pack/09_error_by_segment.csv`
-- `outputs/final_report_pack/10_error_by_price_band.csv`
-- `outputs/final_report_pack/11_coverage_by_segment.csv`
-- `outputs/final_report_pack/12_coverage_by_price_band.csv`
-- `outputs/final_report_pack/13_anomaly_by_segment.csv`
-- `outputs/final_report_pack/14_anomaly_by_price_band.csv`
-- `outputs/final_report_pack/14_improved_segment_profiles.csv`
-- `outputs/final_report_pack/15_anomaly_casebook.csv`
-- `outputs/final_report_pack/16_interpretation_notes.md`
-- `outputs/final_report_pack/17_geospatial_feature_notes.md`
-- `outputs/final_report_pack/18_selected_xgboost_parameters.md`
-- `outputs/final_report_pack/19_segmentation_selection_summary.md`
-- `outputs/final_report_pack/20_local_conformal_summary.md`
+`configs/data_contracts/` contains static dataset contracts: the default source URL, checksum, required schema, and leakage policy. These files are committed.
+
+`data/` is a runtime workspace. It only keeps `.gitkeep` files in a fresh checkout. Downloaded raw data, processed feature tables, manifests, and model artifacts are generated when users run the workflow and remain ignored by Git.
+
+## Generated Technical Outputs
+
+The following files are generated after running `python scripts/quickstart.py --install` or the manual workflow. They are intentionally not committed in the framework checkout.
+
+Core pipeline outputs:
+
+- `data/raw/kc_house_data.csv`
+- `data/processed/kc_house_data_clean.csv`
+- `data/processed/kc_house_features.csv`
+- `data/artifacts/*.joblib`
+- `outputs/tables/valuation_metrics.csv`
+- `outputs/tables/cluster_profiles.csv`
+- `outputs/tables/feature_importance.csv`
+- `outputs/tables/property_intelligence_table.csv`
+- `outputs/reports/pipeline_summary.md`
+- `outputs/reports/*_summary.json`
+- `outputs/figures/*.png`
 
 ## Methodological Safeguards
 
@@ -169,7 +175,7 @@ Core report pack artifacts:
 - The anomaly layer is framed for sale-price valuation gaps, not for listing-side decisions.
 - The data download workflow preserves checksum verification and graceful fallback behavior.
 
-Detailed safeguards are summarized in `docs/methodology/safeguards.md`.
+Detailed methodology is summarized in `docs/methodology.md`.
 
 ## Limitations
 
@@ -185,4 +191,4 @@ Potential future work, not implemented here:
 
 - richer spatial diagnostics within the same dataset scope
 - deeper calibration analysis for difficult slices such as the upper price band
-- more extensive decision-support reporting for lecturer-facing presentation materials
+- more extensive decision-support material for final report and presentation assembly

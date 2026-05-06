@@ -21,39 +21,17 @@ data/artifacts/*
 outputs/*
 !outputs/.gitkeep
 
+!outputs/figures/
 outputs/figures/*
 !outputs/figures/.gitkeep
 
+!outputs/tables/
 outputs/tables/*
 !outputs/tables/.gitkeep
 
 !outputs/reports/
 outputs/reports/*
 !outputs/reports/.gitkeep
-!outputs/reports/final_results_master.json
-!outputs/reports/final_results_master.md
-!outputs/reports/final_results_master.csv
-
-!outputs/final_report_pack/
-outputs/final_report_pack/*
-!outputs/final_report_pack/.gitkeep
-!outputs/final_report_pack/01_core_metrics.md
-!outputs/final_report_pack/02_results_summary_table.csv
-!outputs/final_report_pack/03_anomaly_summary_table.csv
-!outputs/final_report_pack/04_selected_figures_manifest.md
-!outputs/final_report_pack/05_selected_tables_manifest.md
-!outputs/final_report_pack/06_caption_bank.md
-!outputs/final_report_pack/07_case_examples.csv
-!outputs/final_report_pack/08_core_metrics_table.tex
-!outputs/final_report_pack/09_error_by_segment.csv
-!outputs/final_report_pack/10_error_by_price_band.csv
-!outputs/final_report_pack/11_coverage_by_segment.csv
-!outputs/final_report_pack/12_coverage_by_price_band.csv
-!outputs/final_report_pack/13_anomaly_by_segment.csv
-!outputs/final_report_pack/14_anomaly_by_price_band.csv
-!outputs/final_report_pack/14_improved_segment_profiles.csv
-!outputs/final_report_pack/15_anomaly_casebook.csv
-!outputs/final_report_pack/16_interpretation_notes.md
 
 *.parquet
 *.pkl
