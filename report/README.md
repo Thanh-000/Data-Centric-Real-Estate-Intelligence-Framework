@@ -18,6 +18,7 @@ Run the pipeline before compiling if those figures are missing:
 python ../scripts/run_pipeline.py
 python ../scripts/health_check.py
 python ../scripts/evaluate_synthetic_anomalies.py
+python build_report_figures.py
 ```
 
 If the final submission requires named individual contributions, update the contribution table in `main.tex` before export.

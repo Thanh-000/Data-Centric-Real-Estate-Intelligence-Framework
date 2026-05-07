@@ -17,7 +17,7 @@
 
 \geometry{margin=1in}
 \onehalfspacing
-\graphicspath{{../outputs/figures/}}
+\graphicspath{{../outputs/figures/}{figures/}}
 \hypersetup{
     colorlinks=true,
     linkcolor=black,
@@ -85,6 +85,27 @@ The primary user persona is a mortgage valuation reviewer or valuation analyst. 
     \item Which market slices remain difficult or weakly supported?
 \end{enumerate}
 
+\subsection{Analytical Workflow}
+The project is organized as a reproducible pipeline rather than a one-off notebook experiment. Table \ref{tab:workflow_map} maps the technical workflow to the business question. This structure makes it easier for a reviewer to audit how raw records become a stakeholder-facing review queue.
+
+\begin{table}[H]
+\centering
+\caption{From raw data to review queue}
+\label{tab:workflow_map}
+\begin{tabular}{p{0.22\linewidth}p{0.34\linewidth}p{0.34\linewidth}}
+\toprule
+\textbf{Pipeline stage} & \textbf{Technical output} & \textbf{Business purpose}\\
+\midrule
+Data governance & Schema validation, checksum manifest, cleaning flags & Establish whether the dataset is safe to model.\\
+Feature engineering & Temporal, renovation, geospatial, and prior-market features & Represent the drivers a valuation reviewer expects to matter.\\
+Model selection & XGBoost and baseline comparison & Prove that the selected model adds value beyond simple alternatives.\\
+Uncertainty layer & Residual-quantile intervals and coverage diagnostics & Avoid over-confident point estimates.\\
+Decision layer & Model-flagged review queue and local confidence notes & Prioritize human review effort.\\
+Explainability & Feature importance, SHAP, top-driver labels & Support transparent case-level interpretation.\\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \subsection{Environment Analysis}
 Table \ref{tab:swot} summarizes the project environment using SWOT analysis.
 
@@ -103,6 +124,33 @@ Threats & Market regime drift, missing external variables such as school quality
 \bottomrule
 \end{tabular}
 \end{table}
+
+\subsection{Executive Results Snapshot}
+The current run should be read as an uncertainty-aware triage system rather than a pure prediction leaderboard. The model layer answers whether the valuation estimate is accurate enough to be useful; the interval layer answers whether the estimate is cautious enough to support review; and the decision layer turns those estimates into a manageable full-portfolio queue. Table \ref{tab:executive_snapshot} summarizes the core operating numbers.
+
+\begin{table}[H]
+\centering
+\caption{Executive snapshot of current local run}
+\label{tab:executive_snapshot}
+\begin{tabular}{lr}
+\toprule
+\textbf{Operating metric} & \textbf{Current value}\\
+\midrule
+Cleaned transactions & 21,597\\
+Held-out test rows & 2,875\\
+Market segments & 53 zipcode segments\\
+Selected model & XGBoost\\
+Held-out test MAPE & 12.11\%\\
+Held-out test $R^2$ & 0.900\\
+Held-out empirical coverage & 96.1\%\\
+Held-out observed-Q5 empirical coverage & 90.4\%\\
+Full-portfolio model-flagged cases & 628\\
+Full-portfolio flag rate & 2.91\%\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The practical implication is that the system narrows a 21,597-record portfolio into a much smaller review queue while preserving explicit uncertainty diagnostics. This is the key data-storytelling message of the project: the output is not just a fitted regression model, but a reproducible workflow that connects data quality, valuation, uncertainty, explanation, and stakeholder review.
 
 \section{Data Gathering and Preprocessing}
 
@@ -326,7 +374,14 @@ Median baseline & 396,530 & 225,739 & 39.19\% & -0.086\\
 \end{tabular}
 \end{table}
 
-The model comparison shows that XGBoost produces the best overall predictive performance. It reduces test RMSE by approximately 10.7\% relative to random forest and by approximately 69.6\% relative to the median baseline. This justifies the use of a non-linear supervised model for the valuation core.
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.86\linewidth]{report_model_comparison_rmse.png}
+\caption{Visual comparison of held-out RMSE across valuation models}
+\label{fig:model_comparison_rmse}
+\end{figure}
+
+The model comparison shows that XGBoost produces the best overall predictive performance. It reduces test RMSE by approximately 10.7\% relative to random forest and by approximately 69.6\% relative to the median baseline. The visual gap in Figure \ref{fig:model_comparison_rmse} is important for business interpretation: the median baseline is not merely slightly worse; it fails to explain much of the market variation. Linear regression is more competitive on the held-out test set than on validation, but it remains weaker than XGBoost and is less suitable for non-linear location-quality interactions. Random forest is the strongest baseline, yet XGBoost still provides the best combination of RMSE, MAE, MAPE, and $R^2$. This justifies the use of a non-linear supervised model for the valuation core.
 
 \section{Uncertainty, Anomaly Detection, and Evaluation}
 
@@ -404,6 +459,15 @@ Q5 & 575 & 90.4\% & \$847,102\\
 \end{tabular}
 \end{table}
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.88\linewidth]{report_coverage_interval_width.png}
+\caption{Held-out empirical coverage and average interval width by observed price quintile}
+\label{fig:coverage_interval_width}
+\end{figure}
+
+Figure \ref{fig:coverage_interval_width} makes the central uncertainty tradeoff visible. Coverage remains above the 90\% empirical target in all observed price quintiles, but interval width rises sharply for Q5. This is not a cosmetic issue: a high-end property may need a substantially wider fair-value range before the system is willing to flag it. The design is conservative by construction, because under-covering expensive homes would create a misleading review queue.
+
 \subsection{Held-Out Error by Price Band}
 The error analysis shows heteroscedasticity: absolute error increases in higher price bands. Q5 has the highest MAE and RMSE, but its MAPE remains 13.02\%, which is close to the global test MAPE of 12.11\%. This suggests that high-end properties have larger dollar uncertainty but not proportionally catastrophic percentage error. Q1 has the highest percentage error at 17.15\%, even though its dollar MAE is low. This means entry-price homes require separate attention in the dashboard and future diagnostics: a small dollar miss can still represent a large percentage error for lower-priced properties.
 
@@ -423,6 +487,15 @@ Q5 & 575 & \$152,000 & \$236,823 & 13.02\%\\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.88\linewidth]{report_error_by_price_band.png}
+\caption{Held-out MAE and MAPE by observed price quintile}
+\label{fig:error_by_price_band}
+\end{figure}
+
+Figure \ref{fig:error_by_price_band} separates dollar error from percentage error. Q5 has the largest dollar MAE because expensive properties are harder to price in absolute terms. Q1 has the highest MAPE because the denominator is smaller, so a moderate dollar error can become a large percentage miss. This dual pattern is why the dashboard trust panel reports both high-price interval behavior and entry-price MAPE.
 
 \subsection{Anomaly Decision Layer}
 The decision layer produces a review queue rather than a final appraisal decision. This table is computed on the full scored portfolio of 21,597 transactions, not only on the held-out test set. In the current run, 20,969 transactions are within the expected range and 628 are model-flagged for review, a portfolio flag rate of 2.91\%. Among flagged cases, 431 are potentially over-valued and 197 are potentially under-valued. No current transaction is withheld as \texttt{insufficient\_history} in the final property intelligence table because low-support rows remain inspectable through \texttt{evidence\_strength} and \texttt{slice\_risk\_level}.
@@ -446,6 +519,15 @@ Model-flagged rate & 2.91\%\\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.78\linewidth]{report_decision_mix.png}
+\caption{Full-portfolio decision layer composition}
+\label{fig:decision_mix}
+\end{figure}
+
+Figure \ref{fig:decision_mix} shows why the system is best understood as triage. Most sales are retained as within the model-supported range, and the review queue is intentionally small. The flagged set is large enough to support business investigation but small enough to be reviewed manually by a valuation analyst.
 
 \subsection{Threshold Sensitivity}
 The pipeline also produces threshold sensitivity analysis on the full scored portfolio. This is separate from the conformal interval decision rule and is included as a policy diagnostic. The relative gap is defined as:
@@ -493,6 +575,13 @@ Overall & 50\% & 200 & 136 & 68.0\%\\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.82\linewidth]{report_synthetic_recall.png}
+\caption{Synthetic recall response under injected price shocks}
+\label{fig:synthetic_recall}
+\end{figure}
 
 The synthetic recall increases as the injected distortion grows, which is the expected direction. The moderate recall at 30--40\% shocks also confirms that the current interval policy is conservative: it prioritizes avoiding over-confident flags over catching every manipulated case.
 
@@ -555,6 +644,15 @@ Segment label: zipcode 98116 & 0.014\\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.88\linewidth]{report_top_feature_importance.png}
+\caption{Top 10 model feature importance values}
+\label{fig:top_feature_importance}
+\end{figure}
+
+Figure \ref{fig:top_feature_importance} reinforces the feature story: the model is strongly driven by engineered location-quality and size-quality interactions, followed by historical neighborhood context and waterfront/view features. This supports the business interpretation that the model is learning a combination of property quality, usable space, and submarket context rather than relying on a single structural variable.
 
 \subsection{SHAP Summary}
 Figure \ref{fig:shap} presents the SHAP summary output. SHAP is useful because it estimates the contribution of each feature to model output in a game-theoretic additive explanation framework \citep{lundberg2017unified}. In the project notebook, the SHAP section also generates local contribution files for report writing and case review.
