@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: install quickstart download run notebook test clean
+.PHONY: install quickstart download run analyze-abstention evaluate-slices dashboard notebook test clean
 
 install:
 	$(PYTHON) -m pip install --upgrade pip
@@ -14,6 +14,15 @@ download:
 
 run:
 	$(PYTHON) scripts/run_pipeline.py
+
+analyze-abstention:
+	$(PYTHON) scripts/analyze_abstention.py
+
+evaluate-slices:
+	$(PYTHON) scripts/evaluate_slices.py
+
+dashboard:
+	streamlit run app/streamlit_app.py
 
 notebook:
 	$(PYTHON) -m notebook notebooks/01_dc_reif_king_county.ipynb

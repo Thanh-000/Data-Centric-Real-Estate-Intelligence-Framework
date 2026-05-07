@@ -25,6 +25,9 @@ Reference metrics from the validated run are stored in:
 
 - `docs/reference_metrics.md`
 - `docs/model.md`
+- `docs/product_limitations.md`
+- `docs/product_persona.md`
+- `docs/monitoring_plan.md`
 
 Expected reference values:
 
@@ -64,6 +67,7 @@ make install
 ```
 
 For a first local verification run, use the one-command quickstart. It downloads the public King County dataset and runs the pipeline:
+It also writes product analytics tables for abstention and slice-level review.
 
 ```bash
 python scripts/quickstart.py --install
@@ -91,6 +95,8 @@ Manual full workflow:
 
 ```bash
 python scripts/run_pipeline.py
+python scripts/analyze_abstention.py
+python scripts/evaluate_slices.py
 python -m pytest -q
 ```
 
@@ -99,7 +105,21 @@ Equivalent `make` commands:
 ```bash
 make download
 make run
+make analyze-abstention
+make evaluate-slices
 make test
+```
+
+Open the dashboard after running the pipeline:
+
+```bash
+streamlit run app/streamlit_app.py
+```
+
+Equivalent `make` command:
+
+```bash
+make dashboard
 ```
 
 ## Colab Setup
@@ -112,7 +132,8 @@ Recommended Colab sequence:
 2. Run the notebook from top to bottom. If the notebook is launched standalone in Colab, the setup cell clones this repository automatically.
 3. The setup cell installs `requirements.txt`, installs `aria2` in Colab when available, and makes the package importable. It does not mount Google Drive.
 4. The data cell downloads the public King County dataset through the project downloader, preferring `aria2`.
-5. Optionally run `python -m pytest -q` after the notebook or script workflow.
+5. Optional: set `NGROK_AUTHTOKEN` as a Colab secret or environment variable, then run the final notebook cell to expose the Streamlit dashboard through ngrok.
+6. Optionally run `python -m pytest -q` after the notebook or script workflow.
 
 If automatic download is unavailable, place `kc_house_data.csv` in a reachable data directory and point `DATA_DIR` to that location.
 
@@ -121,6 +142,7 @@ If automatic download is unavailable, place `kc_house_data.csv` in a reachable d
 ```text
 repo-root/
 |-- .github/
+|-- app/
 |-- configs/
 |-- data/
 |-- docs/
@@ -135,6 +157,9 @@ Primary entrypoints:
 
 - `python scripts/download_data.py`
 - `python scripts/run_pipeline.py`
+- `python scripts/analyze_abstention.py`
+- `python scripts/evaluate_slices.py`
+- `streamlit run app/streamlit_app.py`
 - `notebooks/01_dc_reif_king_county.ipynb`
 
 ## Model Layer
@@ -163,6 +188,8 @@ Core pipeline outputs:
 - `outputs/tables/cluster_profiles.csv`
 - `outputs/tables/feature_importance.csv`
 - `outputs/tables/property_intelligence_table.csv`
+- `outputs/tables/abstention_*.csv`
+- `outputs/tables/slice_metrics_*.csv`
 - `outputs/reports/pipeline_summary.md`
 - `outputs/reports/*_summary.json`
 - `outputs/figures/*.png`
@@ -187,8 +214,4 @@ Detailed methodology is summarized in `docs/methodology.md`.
 
 ## Future Work
 
-Potential future work, not implemented here:
-
-- richer spatial diagnostics within the same dataset scope
-- deeper calibration analysis for difficult slices such as the upper price band
-- more extensive decision-support material for final report and presentation assembly
+The current repository is a strong analytical framework, but not yet a complete stakeholder-facing DA product. Product gaps and the prioritized roadmap are documented in `docs/product_limitations.md`.

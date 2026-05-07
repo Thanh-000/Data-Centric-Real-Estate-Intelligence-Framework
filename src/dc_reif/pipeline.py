@@ -198,6 +198,8 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
             "property_id": modeling_df[config.id_column].astype(str),
             "sale_date": modeling_df[config.date_column].dt.strftime("%Y-%m-%d"),
             "zipcode": modeling_df["zipcode"].astype(str),
+            "lat": modeling_df["lat"],
+            "long": modeling_df["long"],
             "observed_price": modeling_df[config.target_column],
             "fair_value_hat": intervals["fair_value_hat"],
             "lower_bound": intervals["lower_bound"],

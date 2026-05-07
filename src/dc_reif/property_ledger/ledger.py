@@ -28,6 +28,8 @@ def build_property_ledger(dataframe: pd.DataFrame) -> pd.DataFrame:
         "property_id",
         "sale_date",
         "zipcode",
+        "lat",
+        "long",
         "observed_price",
         "fair_value_hat",
         "lower_bound",

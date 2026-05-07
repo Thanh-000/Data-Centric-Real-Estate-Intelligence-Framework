@@ -12,6 +12,8 @@ def test_pipeline_produces_property_intelligence_outputs(sample_dataframe, temp_
     property_table = pd.read_csv(outputs["property_intelligence"])
     required_columns = {
         "property_id",
+        "lat",
+        "long",
         "observed_price",
         "fair_value_hat",
         "lower_bound",

@@ -48,6 +48,8 @@ def main() -> None:
 
     _run("Download official dataset", [python, "scripts/download_data.py", *common_args])
     _run("Run pipeline", [python, "scripts/run_pipeline.py", *common_args])
+    _run("Analyze abstention", [python, "scripts/analyze_abstention.py", *common_args])
+    _run("Evaluate slices", [python, "scripts/evaluate_slices.py", *common_args])
     if args.with_tests:
         _run("Run tests", [python, "-m", "pytest", "-q"])
 
