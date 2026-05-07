@@ -1,8 +1,8 @@
-# DC-REIF: Final Validated King County Real Estate Intelligence System
+# DC-REIF: King County Real Estate Intelligence Framework
 
 ## Project Overview
 
-This repository contains the final validated DC-REIF system framework for the King County House Sales dataset. The implementation is deliberately narrow, data-centric, and trust-aware: it focuses on one valuation core, one contextual market-grouping workflow, one uncertainty layer, and one decision-support output.
+This repository contains a runnable DC-REIF framework for the King County House Sales dataset. The implementation is deliberately narrow and data-centric: one valuation core, one market-context workflow, one uncertainty layer, and one decision-support output.
 
 The system operates on realized **sale-price** data only. Its downstream decision product is **Pricing Anomaly Detection / Valuation Gap Analysis** for observed sale transactions.
 
@@ -46,8 +46,7 @@ Or:
 make install
 ```
 
-For a first local verification run, use the one-command quickstart. It downloads the public King County dataset and runs the pipeline:
-It also writes product analytics tables for abstention and slice-level review.
+For a first local verification run, use the one-command quickstart. It downloads the public King County dataset, runs the pipeline, and writes product analytics tables for abstention and slice-level review.
 
 ```bash
 python scripts/quickstart.py --install
@@ -63,12 +62,6 @@ To include the test suite in the same run:
 
 ```bash
 python scripts/quickstart.py --install --with-tests
-```
-
-Optional experiment run with Optuna tuning and local MLflow tracking:
-
-```bash
-python scripts/quickstart.py --install --optuna-trials 25 --enable-mlflow
 ```
 
 Manual dataset download:
@@ -94,18 +87,6 @@ make run
 make analyze-abstention
 make evaluate-slices
 make test
-```
-
-Optional model tuning:
-
-```bash
-python scripts/run_pipeline.py --optuna-trials 25
-```
-
-Optional local experiment tracking:
-
-```bash
-python scripts/run_pipeline.py --enable-mlflow true
 ```
 
 Open the dashboard after running the pipeline:
@@ -197,7 +178,6 @@ Core pipeline outputs:
 - `outputs/reports/pipeline_summary.md`
 - `outputs/reports/*_summary.json`
 - `outputs/figures/*.png`
-- `outputs/mlruns/` when MLflow tracking is enabled
 
 ## Methodological Safeguards
 
@@ -207,7 +187,6 @@ Core pipeline outputs:
 - Out-of-fold fair values are used for calibration and evaluation; fallback scoring keeps the runtime property table reviewable for low-support rows.
 - The anomaly layer is framed for sale-price valuation gaps, not for listing-side decisions.
 - The data download workflow preserves checksum verification and graceful fallback behavior.
-- Optuna and MLflow are opt-in so the default quickstart stays simple, while experiment runs remain reproducible.
 
 Detailed methodology is summarized in `docs/methodology.md`.
 

@@ -30,8 +30,6 @@ def main() -> None:
     parser.add_argument("--no-aria2", action="store_true", help="Disable aria2 and use Python download fallbacks.")
     parser.add_argument("--with-tests", action="store_true", help="Run pytest after building outputs.")
     parser.add_argument("--output-dir", default=str(ROOT / "outputs"), help="Output directory.")
-    parser.add_argument("--optuna-trials", type=int, default=0, help="Optional Optuna trials for XGBoost tuning.")
-    parser.add_argument("--enable-mlflow", action="store_true", help="Log the pipeline run to local MLflow tracking.")
     args = parser.parse_args()
 
     python = sys.executable
@@ -47,10 +45,6 @@ def main() -> None:
     common_args = ["--output-dir", str(output_dir), "--use-aria2", str(use_aria2).lower()]
     if args.force_download:
         common_args.extend(["--force-download", "true"])
-    if args.optuna_trials:
-        common_args.extend(["--optuna-trials", str(args.optuna_trials)])
-    if args.enable_mlflow:
-        common_args.extend(["--enable-mlflow", "true"])
 
     _run("Download official dataset", [python, "scripts/download_data.py", *common_args])
     _run("Run pipeline", [python, "scripts/run_pipeline.py", *common_args])

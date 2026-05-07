@@ -84,7 +84,7 @@ The interval method is lightweight and reproducible. It is not a fully heterosce
 
 ## 11. Explainability
 
-The pipeline generates global feature importance and optional SHAP summaries at runtime when dependencies and fitted artifacts are available. These outputs explain model behavior, not causality.
+The pipeline generates global feature importance at runtime. These outputs explain model behavior, not causality.
 
 Local driver summaries support review of anomalous cases, but they should not be treated as proof that a feature caused a sale price.
 
