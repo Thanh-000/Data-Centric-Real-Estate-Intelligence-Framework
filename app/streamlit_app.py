@@ -21,7 +21,7 @@ LABEL_COLORS = {
     "potentially_over_valued": [222, 82, 70, 220],
     "potentially_under_valued": [43, 138, 174, 220],
     "insufficient_history": [240, 180, 64, 210],
-    "within_expected_range": [84, 150, 92, 95],
+    "within_expected_range": [84, 150, 92, 42],
 }
 
 LABEL_NAMES = {
@@ -152,6 +152,14 @@ def apply_selected_filters(dataframe: pd.DataFrame, selections: dict[str, list[s
     return filtered
 
 
+def map_labels_for_focus(map_focus: str, selected_review_labels: list[str]) -> list[str]:
+    focus_labels = MAP_FOCUS[map_focus]
+    if not selected_review_labels:
+        return focus_labels
+    selected = set(selected_review_labels)
+    return [label for label in focus_labels if label in selected]
+
+
 def format_currency(value: float | int | None) -> str:
     if pd.isna(value):
         return "-"
@@ -168,14 +176,9 @@ def rgba_css(color: list[int]) -> str:
     return f"rgba({color[0]}, {color[1]}, {color[2]}, {color[3] / 255:.2f})"
 
 
-def legend_html() -> str:
+def legend_html(labels: list[str]) -> str:
     items = []
-    for label in [
-        "potentially_over_valued",
-        "potentially_under_valued",
-        "insufficient_history",
-        "within_expected_range",
-    ]:
+    for label in labels:
         items.append(
             f"<span class='legend-item'><span class='legend-dot' style='background:{rgba_css(LABEL_COLORS[label])}'></span>"
             f"{LABEL_NAMES[label]}</span>"
@@ -200,6 +203,7 @@ def prepare_map_frame(dataframe: pd.DataFrame, focus_labels: list[str], max_poin
     map_frame["label"] = map_frame["anomaly_flag"].astype(str).map(LABEL_NAMES).fillna(map_frame["anomaly_flag"].astype(str))
     score = map_frame["anomaly_score"].abs().fillna(0.0) if "anomaly_score" in map_frame.columns else pd.Series(0.0, index=map_frame.index)
     map_frame["radius_px"] = (3.0 + score.clip(upper=0.35) * 18).clip(lower=3.0, upper=9.0)
+    map_frame.loc[map_frame["anomaly_flag"].eq("within_expected_range"), "radius_px"] = 2.4
     map_frame["observed_price_display"] = map_frame["observed_price"].map(format_currency)
     map_frame["fair_value_display"] = map_frame["fair_value_hat"].map(format_currency)
     map_frame["score_display"] = map_frame["anomaly_score"].map(format_score) if "anomaly_score" in map_frame.columns else "-"
@@ -216,7 +220,7 @@ def render_map(dataframe: pd.DataFrame, focus_labels: list[str], max_points: int
         st.info(f"No map rows match the current filters for {focus_source}.")
         return
 
-    st.markdown(legend_html(), unsafe_allow_html=True)
+    st.markdown(legend_html(focus_labels), unsafe_allow_html=True)
     st.markdown(
         f"<div class='hint'>Showing {len(map_frame):,} points from {focus_source}. Point size follows absolute anomaly score; colors follow review label.</div>",
         unsafe_allow_html=True,
@@ -310,13 +314,18 @@ def main() -> None:
     map_tab, queue_tab, slice_tab = st.tabs(["Map", "Review queue", "Slice summary"])
 
     with map_tab:
+        focus_labels = map_labels_for_focus(map_focus, selected_review_labels)
+        active_names = ", ".join(display_value("anomaly_flag", label) for label in focus_labels)
+        focus_source = f"{map_focus.lower()} ({active_names})" if active_names else map_focus.lower()
         if selected_review_labels:
-            focus_labels = selected_review_labels
-            focus_source = "selected review labels"
+            excluded_labels = [label for label in selected_review_labels if label not in MAP_FOCUS[map_focus]]
+            if excluded_labels:
+                excluded_names = ", ".join(display_value("anomaly_flag", label) for label in excluded_labels)
+                st.caption(f"Map focus excludes {excluded_names}. Use All transactions to include them on the map.")
+        if not focus_labels:
+            st.info("The selected Review label does not belong to the current Map focus. Change Map focus to All transactions or adjust Review label.")
         else:
-            focus_labels = MAP_FOCUS[map_focus]
-            focus_source = map_focus.lower()
-        render_map(filtered, focus_labels=focus_labels, max_points=max_points, focus_source=focus_source)
+            render_map(filtered, focus_labels=focus_labels, max_points=max_points, focus_source=focus_source)
 
     with queue_tab:
         queue_columns = [
