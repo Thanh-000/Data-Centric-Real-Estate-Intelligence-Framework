@@ -20,8 +20,10 @@ The validated workflow includes:
 - log-target XGBoost candidates for heteroscedastic sale-price behavior
 - median, linear regression, and random forest baseline comparison
 - leakage-safe preprocessing through a fitted sklearn pipeline
+- strictly prior-date historical price features for zipcode, geo-cell, and nearby prior-sale context
 - out-of-fold fair-value estimates for training-era anomaly analysis
-- forward holdout predictions for test-era evaluation
+- validation-holdout conformal calibration before forward test-era evaluation
+- default conformal alpha of 0.10, targeting 90% nominal coverage on the validation-calibrated holdout workflow
 - runtime feature importance and SHAP summary outputs
 
 ## Runtime Model Artifacts

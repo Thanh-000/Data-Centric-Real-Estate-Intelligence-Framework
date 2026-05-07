@@ -126,6 +126,8 @@ def calibrate_local_conformal(
 
     calibration_summary = {
         "interval_method": "conformal_prediction_residual_quantile_by_predicted_price_decile_and_segment",
+        "alpha": float(alpha),
+        "nominal_coverage_target": float(1 - alpha),
         "global_q_hat": float(global_q_hat),
         "price_band_edges": [float(edge) for edge in price_band_edges],
         "min_price_band_samples": int(min_price_band_samples),

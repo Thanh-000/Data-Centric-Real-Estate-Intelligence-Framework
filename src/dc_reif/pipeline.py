@@ -197,12 +197,14 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
     fair_value_hat.loc[valuation.fair_value_hat_test.index] = valuation.fair_value_hat_test
     fair_value_hat = fair_value_hat.fillna(valuation.fair_value_hat_all.reindex(modeling_df.index))
 
-    calibration_mask = valuation.fair_value_hat_oof.notna()
+    validation_prediction = valuation.validation_predictions.get(valuation.model_name)
+    if validation_prediction is None:
+        validation_prediction = next(iter(valuation.validation_predictions.values()))
     calibration_frame = pd.DataFrame(
         {
-            "observed_price": split_bundle.train_validation_df.loc[calibration_mask, config.target_column],
-            "fair_value_hat": valuation.fair_value_hat_oof.loc[calibration_mask],
-            "segment_label": split_bundle.train_validation_df.loc[calibration_mask, "segment_label"],
+            "observed_price": split_bundle.validation_df[config.target_column],
+            "fair_value_hat": validation_prediction.reindex(split_bundle.validation_df.index),
+            "segment_label": split_bundle.validation_df["segment_label"],
         }
     )
     prediction_frame = pd.DataFrame(
@@ -314,6 +316,8 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
     save_json(
         {
             **calibration_artifacts.calibration_summary,
+            "calibration_source": "chronological_validation_holdout",
+            "calibration_rows": int(len(calibration_frame.dropna(subset=["observed_price", "fair_value_hat"]))),
             "global_empirical_coverage": float(interval_metrics["empirical_coverage"]),
             "global_average_interval_width": float(interval_metrics["average_interval_width"]),
             "q5_empirical_coverage": q5_coverage,

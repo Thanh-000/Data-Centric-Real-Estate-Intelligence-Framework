@@ -43,7 +43,7 @@ Predictive features are derived from observed property, temporal, renovation, hi
 
 The feature layer separates descriptive-only variables from predictive variables. For example, `price_per_sqft` may be useful for human-readable analysis, but it is not allowed in the model branch because it is directly target-derived.
 
-Renovation is represented as `renovated_flag`, `years_since_renovation`, and `renovation_recency`; the raw `yr_renovated = 0` field is not used directly as a predictive feature. Historical spatial features use prior transactions only, such as prior zipcode median price and nearby prior-sale median price, to avoid look-ahead leakage.
+Renovation is represented as `renovated_flag`, `years_since_renovation`, and `renovation_recency`; the raw `yr_renovated = 0` field is not used directly as a predictive feature. Historical spatial features use strictly earlier sale dates only, such as prior zipcode median price and nearby prior-sale median price. Same-day transactions and future holdout rows are not used as historical evidence for a row.
 
 ## 6. Split Design
 
@@ -78,7 +78,7 @@ The runtime property table now uses fallback scoring from the selected final mod
 
 ## 10. Uncertainty Layer
 
-The uncertainty layer uses localized conformal prediction residual quantiles by predicted price decile and segment. It provides practical interval estimates around fair-value predictions and reports empirical coverage on the holdout period.
+The uncertainty layer uses localized conformal prediction residual quantiles by predicted price decile and segment. Calibration is taken from the chronological validation holdout immediately before the test window, then evaluated on later test transactions. The default alpha is 0.10, so the nominal target is 90% coverage; slice-level coverage, especially for the upper price band, is reported separately because real-estate residuals drift over time and thin zipcode segments can be unstable.
 
 The interval method is lightweight and reproducible. It is not a fully heteroscedastic uncertainty model, so the pipeline writes interval-width distributions by price band and segment, plus q-hat min/median/max audit fields, to make width behavior explicit.
 

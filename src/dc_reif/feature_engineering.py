@@ -99,9 +99,18 @@ def _haversine_distance_km(
 
 def _historical_group_median(df: pd.DataFrame, group_column: str, min_periods: int = 3) -> pd.Series:
     ordered = df.sort_values(["date", "id"]).copy()
-    median = ordered.groupby(group_column)["price"].transform(
-        lambda series: series.shift(1).expanding(min_periods=min_periods).median()
-    )
+    median = pd.Series(np.nan, index=ordered.index, dtype=float)
+    history: dict[object, list[float]] = {}
+
+    for _, date_frame in ordered.groupby("date", sort=True):
+        for group_value, group_frame in date_frame.groupby(group_column, dropna=False):
+            prior_prices = history.get(group_value, [])
+            if len(prior_prices) >= min_periods:
+                median.loc[group_frame.index] = float(np.median(prior_prices))
+        for group_value, group_frame in date_frame.groupby(group_column, dropna=False):
+            prices = group_frame["price"].dropna().astype(float).tolist()
+            history.setdefault(group_value, []).extend(prices)
+
     return median.reindex(df.index)
 
 
@@ -118,9 +127,10 @@ def _historical_neighbor_features(df: pd.DataFrame, radius_km: float = 2.0, min_
     tree = BallTree(coordinates, metric="haversine")
     neighbor_indices = tree.query_radius(coordinates, r=radius_km / 6371.0)
     prices = ordered["price"].astype(float).to_numpy()
+    sale_dates = ordered["date"].to_numpy(dtype="datetime64[ns]")
 
     for position, neighbors in enumerate(neighbor_indices):
-        prior_neighbors = neighbors[neighbors < position]
+        prior_neighbors = neighbors[sale_dates[neighbors] < sale_dates[position]]
         output.iloc[position, output.columns.get_loc("prior_neighbor_sale_count")] = int(len(prior_neighbors))
         if len(prior_neighbors) >= min_neighbors:
             output.iloc[position, output.columns.get_loc("prior_neighbor_median_price")] = float(np.median(prices[prior_neighbors]))
