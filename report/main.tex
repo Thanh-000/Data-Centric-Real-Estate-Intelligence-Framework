@@ -273,16 +273,32 @@ Real estate prices are spatially concentrated. The pipeline generates a spatial 
 \end{figure}
 
 \subsection{Dashboard-Oriented Visualization}
-The current system includes a Streamlit review dashboard. Its purpose is not to replace the report but to provide an interactive consumption layer for non-technical reviewers. The dashboard supports:
-\begin{itemize}
-    \item map-based review of model-flagged sales and all sales context;
-    \item filters by review outcome, zipcode, price band, evidence strength, and slice risk;
-    \item a sales list for triage;
-    \item market-slice summaries;
-    \item a trust panel that displays coverage, high-price coverage, and interval width.
-\end{itemize}
+The current system includes a Streamlit review dashboard that acts as the stakeholder-facing consumption layer. Its purpose is not to replace the statistical report or the reproducible pipeline. Instead, it translates the technical outputs into a review cockpit for a non-technical valuation analyst. The dashboard reads the generated property intelligence table, model-flagged case list, slice summaries, and trust diagnostics, then exposes them through map, table, and summary views.
 
-This directly supports the assignment requirement for professional dashboards and visualizations while preserving the system's decision-support scope.
+\begin{table}[H]
+\centering
+\caption{Dashboard components and analytical role}
+\label{tab:dashboard_components}
+\begin{tabular}{p{0.22\linewidth}p{0.32\linewidth}p{0.34\linewidth}}
+\toprule
+\textbf{Component} & \textbf{What the user sees} & \textbf{Analytical role}\\
+\midrule
+Map view & Colored property points over King County geography & Shows whether review flags cluster in specific neighborhoods or appear as isolated cases.\\
+Sales list & Filtered transaction-level table with prices, fair-value estimates, intervals, and labels & Converts model output into an inspectable human review queue.\\
+Market slices & Aggregates by zipcode, price band, evidence strength, and slice risk & Identifies segments where the model is producing more review flags or wider uncertainty.\\
+Trust panel & Coverage, high-price coverage, interval width, entry-price MAPE, and limitation notes & Prevents users from treating the model as an unquestioned appraisal authority.\\
+Sidebar filters & Review outcome, zipcode, price band, evidence strength, slice risk, and maximum map points & Lets reviewers narrow the analysis without editing code.\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The map interaction is intentionally separated into focused and contextual modes. A reviewer can first inspect only model-flagged cases, then switch to all sales to understand whether a highlighted property sits in a dense local market or in a sparse evidence region. Colors encode review outcome: over-valued candidates, under-valued candidates, limited-evidence records, and within-range sales are visually distinct. Point size follows the absolute anomaly score, so stronger deviations are easier to notice without reading the table first. This design helps new users understand that the map is a triage aid: it reveals where to look, not what final decision to make.
+
+The dashboard also addresses a practical weakness of static CSV and PNG outputs. A report table can say that 628 of 21,597 transactions were model-flagged, but a valuation reviewer needs to ask follow-up questions: whether those cases concentrate in Bellevue or Mercer Island, whether they are mostly high-price properties, whether they have strong local evidence, and whether the interval layer is wide enough to justify caution. The dashboard makes those questions answerable through interaction rather than additional scripts.
+
+Several design choices preserve methodological caution. The trust panel includes the empirical coverage warning used in this report: coverage values are diagnostics under the implemented chronological, localized, upper-tail-adjusted protocol, not theoretical split-conformal guarantees. It also highlights the two main error regimes: Q5 has the widest dollar intervals, while Q1 has the highest percentage error. The dashboard is therefore not only a visualization layer; it is a communication layer that keeps model performance, uncertainty, and business interpretation visible at the same time.
+
+The current dashboard remains a prototype. It does not store reviewer decisions, require authentication, create audit logs, or retrain models. Those features would be required for a production appraisal-support tool. For the final project scope, however, it satisfies the professional visualization requirement by turning pipeline artifacts into an interactive review workflow rather than leaving stakeholders with disconnected tables and static plots.
 
 \section{Model Implementation}
 
@@ -701,17 +717,49 @@ The repository is intentionally distributed as a runnable framework. Generated d
 \begin{verbatim}
 python scripts/quickstart.py --install
 python scripts/run_pipeline.py
-python scripts/health_check.py
 python -m pytest -q
 \end{verbatim}
 
-The health check verifies required outputs, held-out test MAPE, held-out coverage, high-price interval width, and full-portfolio model-flagged cases. In the current local run, all health checks pass.
+The reproducibility evidence is the rerunnable pipeline, generated model outputs, report figures, notebook audit trail, and automated tests. Development utility checks may still exist in the repository, but they are not treated as a core analytical deliverable in this final report.
 
 \subsection{Notebook Deliverable}
-The documented notebook \path{notebooks/01_dc_reif_king_county.ipynb} supports the required step-by-step workflow. It includes environment setup, dataset acquisition, schema validation, cleaning, feature engineering, EDA, model evaluation, local conformal calibration, SHAP explainability, report-ready summary cells, and optional Streamlit launch support for Colab.
+The documented notebook \path{notebooks/01_dc_reif_king_county.ipynb} is the research-facing audit trail of the project. It complements \path{scripts/run_pipeline.py}: the pipeline is the production-style execution path, while the notebook explains the reasoning process cell by cell. This distinction matters for a data science final project because a reviewer must be able to inspect not only the final metrics, but also the sequence of decisions that produced them.
+
+The notebook is designed to run locally or in Google Colab without mounting Google Drive. Its setup cells install the project package, resolve import paths, and acquire the dataset directly. In Colab, the notebook can use \texttt{aria2} for faster dataset download, then continue through validation and modeling without requiring a private folder layout. This makes the notebook usable by a new evaluator who wants to rerun the project from a clean environment.
+
+\begin{table}[H]
+\centering
+\caption{Notebook sections and report value}
+\label{tab:notebook_sections}
+\begin{tabular}{p{0.23\linewidth}p{0.33\linewidth}p{0.34\linewidth}}
+\toprule
+\textbf{Notebook section} & \textbf{What it demonstrates} & \textbf{Why it matters for the report}\\
+\midrule
+Environment setup & Package installation, path configuration, Colab-compatible execution & Shows that the project can be rerun by a new user.\\
+Data acquisition & Dataset download with local or Colab paths and optional \texttt{aria2} & Removes manual data setup as a barrier to verification.\\
+Schema and cleaning & Required-column checks, missingness review, cleaning policy, feature dataset creation & Links raw data quality to the final modeling table.\\
+EDA & Price distribution, spatial patterns, temporal behavior, and summary statistics & Provides visual evidence for skew, geography, and market segmentation choices.\\
+Modeling & Chronological split, baseline comparison, selected XGBoost metrics & Makes model selection auditable instead of only reporting the winner.\\
+Uncertainty & Local interval calibration, coverage diagnostics, and methodological warning & Shows how the empirical interval layer is evaluated and why it is not a theoretical guarantee.\\
+Explainability & SHAP summary, feature importance, and local contribution examples & Connects global model behavior to case-level review notes.\\
+Report summary & Report-ready metrics, markdown summaries, and local-case exports & Reduces manual copying errors when writing the final manuscript.\\
+Dashboard launch & Optional Streamlit and Colab tunnel workflow & Lets evaluators inspect the stakeholder interface from the notebook environment.\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The notebook also includes report-ready synthesis cells. These cells consolidate key metrics, coverage values, anomaly counts, SHAP drivers, and selected case examples into reusable outputs. This is important because the report combines several evaluation universes: held-out test metrics, full-portfolio review counts, synthetic anomaly sanity checks, and dashboard-facing slice summaries. The notebook makes those scopes visible instead of leaving the reader to infer them from separate CSV files.
+
+The notebook should still be read as an explanatory artifact rather than the single source of truth for deployment. Notebooks are stateful by nature: cells can be run out of order, and local variables can persist unexpectedly. For final verification, the project relies on the scripted pipeline and tests. For transparency, teaching, and external review, the notebook is the most useful artifact because it shows the analytical path in a form that can be rerun and inspected step by step.
 
 \subsection{Dashboard Deliverable}
-The dashboard \path{app/streamlit_app.py} provides a practical consumption layer for non-technical stakeholders. It includes map mode selection, review filters, a sales list, market-slice summaries, and a trust panel. The design choice to separate ``model-flagged cases'' from ``all sales for context'' is intentional: users need both a focused review queue and the ability to understand geographic background.
+The dashboard \path{app/streamlit_app.py} is the product-facing deliverable. It operationalizes the report by answering the question a stakeholder naturally asks after reading the metrics: which properties should be reviewed, where are they located, and how much should the analyst trust the model signal?
+
+The dashboard workflow begins with a high-level status summary, then moves into map exploration, transaction review, and slice-level analysis. The sidebar filters are intentionally phrased as review concepts rather than model internals: review outcome, zipcode, price band, evidence strength, and slice risk. This makes the interface more approachable for a new user while still preserving the technical meaning behind each field.
+
+The most important dashboard design decision is to separate flagged review cases from broader market context. If the interface showed only flagged rows, users would lose geographic background and might over-interpret isolated points. If it showed all sales by default without guidance, new users could miss the actual review queue. The map modes solve this by letting users move between a focused triage view and an all-sales context view.
+
+The dashboard also makes uncertainty visible. A sale can be inside the expected range, outside the expected range, or supported by limited local evidence. These states are displayed alongside interval bounds and slice-risk labels so the reviewer can distinguish ``strong review candidate'' from ``weak local evidence; inspect cautiously.'' This is aligned with the system's core purpose: model-assisted prioritization, not automated appraisal.
 
 \section{Limitations}
 The current system is credible as a course-level data science product, but it is not production-ready in a regulatory appraisal sense.
@@ -748,7 +796,7 @@ Data engineering & Data download, schema validation, cleaning, feature dataset g
 Modeling and evaluation & Chronological split, XGBoost selection, baseline comparison, conformal calibration, interval diagnostics.\\
 Explainability and reporting & Feature importance, SHAP summary, local top-driver labels, trust summary, report-ready notebook cells.\\
 Product and dashboard & Streamlit dashboard, map review mode, sales list, market-slice summary, trust panel, product limitation documentation.\\
-Testing and submission readiness & Unit tests, health check script, README quickstart, reproducible artifact generation.\\
+Testing and submission readiness & Unit tests, README quickstart, notebook rerun path, reproducible artifact generation.\\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -779,19 +827,6 @@ Testing and submission readiness & Unit tests, health check script, README quick
 \path{outputs/figures/spatial_residual_map.png} & Geographic diagnostic for residual patterns.\\
 \bottomrule
 \end{longtable}
-
-\section{Appendix B: Health Check Result}
-The final local verification before this report was written returned:
-
-\begin{verbatim}
-PASS required outputs: 6/6 present
-PASS Test MAPE: 12.11% <= 15%
-PASS Test global coverage: 96.1% >= 90%
-PASS Test observed-Q5 coverage: 90.4% >= 90%
-PASS Test observed-Q5 interval width: USD 847,102 <= USD 900,000
-PASS Full portfolio model-flagged cases: 628 cases
-PASS Full portfolio model_flagged_cases.csv
-\end{verbatim}
 
 \newpage
 \begin{thebibliography}{10}

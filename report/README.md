@@ -16,7 +16,6 @@ Run the pipeline before compiling if those figures are missing:
 
 ```bash
 python ../scripts/run_pipeline.py
-python ../scripts/health_check.py
 python ../scripts/evaluate_synthetic_anomalies.py
 python build_report_figures.py
 ```
