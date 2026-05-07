@@ -8,6 +8,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 TABLES = ROOT / "outputs" / "tables"
+PROCESSED = ROOT / "data" / "processed"
 FIGURES = Path(__file__).resolve().parent / "figures"
 
 
@@ -116,6 +117,83 @@ def top_features() -> None:
     _save(fig, "report_top_feature_importance.png")
 
 
+def correlation_heatmap() -> None:
+    frame = pd.read_csv(PROCESSED / "kc_house_data_clean.csv")
+    columns = [
+        "price",
+        "sqft_living",
+        "grade",
+        "bathrooms",
+        "bedrooms",
+        "view",
+        "waterfront",
+        "condition",
+        "sqft_above",
+        "sqft_lot",
+        "lat",
+        "long",
+    ]
+    available = [column for column in columns if column in frame.columns]
+    corr = frame[available].corr(numeric_only=True)
+    fig, ax = plt.subplots(figsize=(8.5, 7.2))
+    image = ax.imshow(corr, cmap="RdBu_r", vmin=-1, vmax=1)
+    ax.set_xticks(range(len(corr.columns)))
+    ax.set_yticks(range(len(corr.index)))
+    ax.set_xticklabels(corr.columns, rotation=45, ha="right")
+    ax.set_yticklabels(corr.index)
+    for row in range(len(corr.index)):
+        for col in range(len(corr.columns)):
+            value = corr.iloc[row, col]
+            ax.text(col, row, f"{value:.2f}", ha="center", va="center", fontsize=7)
+    ax.set_title("Correlation Heatmap of Core Housing Variables")
+    fig.colorbar(image, ax=ax, shrink=0.78)
+    _save(fig, "report_correlation_heatmap.png")
+
+
+def price_by_grade() -> None:
+    frame = pd.read_csv(PROCESSED / "kc_house_data_clean.csv")
+    grouped = frame.groupby("grade")["price"].agg(["median", "count"]).reset_index()
+    fig, ax1 = plt.subplots(figsize=(9, 4.8))
+    ax2 = ax1.twinx()
+    ax1.bar(grouped["grade"], grouped["median"] / 1000, color="#4c78a8", alpha=0.82)
+    ax2.plot(grouped["grade"], grouped["count"], color="#d95f02", marker="o", linewidth=1.8)
+    ax1.set_xlabel("Property grade")
+    ax1.set_ylabel("Median sale price (USD thousands)")
+    ax2.set_ylabel("Transaction count")
+    ax1.set_title("Median Sale Price and Volume by Property Grade")
+    _save(fig, "report_price_by_grade.png")
+
+
+def price_by_waterfront_view() -> None:
+    frame = pd.read_csv(PROCESSED / "kc_house_data_clean.csv")
+    waterfront = frame.assign(
+        waterfront_label=frame["waterfront"].fillna(0).astype(int).map({0: "No waterfront", 1: "Waterfront"})
+    )
+    waterfront_group = waterfront.groupby("waterfront_label")["price"].median().reindex(["No waterfront", "Waterfront"])
+    view_group = frame.assign(view=frame["view"].fillna(0).astype(int)).groupby("view")["price"].median()
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4.6))
+    axes[0].bar(waterfront_group.index, waterfront_group.values / 1000, color=["#7aa6c2", "#d65f5f"])
+    axes[0].set_ylabel("Median sale price (USD thousands)")
+    axes[0].set_title("Price by Waterfront")
+    axes[1].bar(view_group.index.astype(str), view_group.values / 1000, color="#8ab17d")
+    axes[1].set_xlabel("View rating")
+    axes[1].set_title("Price by View Rating")
+    _save(fig, "report_price_by_waterfront_view.png")
+
+
+def zipcode_distribution() -> None:
+    frame = pd.read_csv(PROCESSED / "kc_house_data_clean.csv")
+    counts = frame["zipcode"].value_counts().head(15).sort_values()
+    fig, ax = plt.subplots(figsize=(8.5, 5.4))
+    ax.barh(counts.index.astype(str), counts.values, color="#6c8ebf")
+    ax.set_xlabel("Transactions")
+    ax.set_ylabel("Zipcode")
+    ax.set_title("Top 15 Zipcodes by Transaction Count")
+    for index, value in enumerate(counts.values):
+        ax.text(value + 10, index, f"{value:,}", va="center", fontsize=8)
+    _save(fig, "report_zipcode_distribution.png")
+
+
 def main() -> None:
     model_comparison()
     coverage_and_width()
@@ -123,6 +201,10 @@ def main() -> None:
     decision_mix()
     synthetic_recall()
     top_features()
+    correlation_heatmap()
+    price_by_grade()
+    price_by_waterfront_view()
+    zipcode_distribution()
     print(f"saved report figures to {FIGURES}")
 
 

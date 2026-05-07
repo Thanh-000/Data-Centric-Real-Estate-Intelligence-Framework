@@ -152,6 +152,8 @@ Full-portfolio flag rate & 2.91\%\\
 
 The practical implication is that the system narrows a 21,597-record portfolio into a much smaller review queue while preserving explicit uncertainty diagnostics. The current interval-based queue contains 628 records, which means an analyst can begin with 2.91\% of the portfolio instead of manually screening every transaction. This is a triage reduction of 97.09\% for first-pass review, not proof that the remaining records require no professional oversight.
 
+The report uses two evaluation universes. Held-out test metrics evaluate model performance on 2,875 future-period test rows. Full-portfolio scoring applies the trained pipeline to all 21,597 cleaned transactions to create an operational review queue. Therefore, the 628 flagged cases are a full-portfolio triage output, not a held-out test accuracy metric.
+
 \warningbox{The 96.1\% coverage value is an empirical diagnostic on the held-out chronological test protocol. It is not a theoretical split-conformal guarantee, a regulatory guarantee, or a substitute for professional comparable-sale review. The high-price Q5 segment still requires special caution because its average interval width is \$847,102.}
 
 \section{Scope, Business Value, and Analyst Workflow}
@@ -176,26 +178,7 @@ Business operation metric & Flag rate, review queue size, precision@K, reviewer 
 \end{tabular}
 \end{table}
 
-\subsection{Review KPI Framework}
-The current run supports basic queue KPIs, while reviewer-quality KPIs require a human-review pilot. Table \ref{tab:business_kpis} distinguishes measured results from future validation metrics. This avoids overstating model accuracy as business value.
-
-\begin{table}[H]
-\centering
-\caption{Review KPI framework for valuation review}
-\label{tab:business_kpis}
-\begin{tabular}{p{0.24\linewidth}p{0.31\linewidth}p{0.19\linewidth}p{0.16\linewidth}}
-\toprule
-\textbf{KPI} & \textbf{Definition} & \textbf{Current status} & \textbf{Use}\\
-\midrule
-Review queue size & Number of full-portfolio records flagged by the interval decision layer & 628 of 21,597 & Defines the initial analyst workload.\\
-Flag rate & Flagged records divided by scored records & 2.91\% & Monitors whether the system is too noisy or too conservative.\\
-First-pass triage reduction & Records not initially sent to the review queue divided by scored records & 97.09\% & Shows workload reduction.\\
-Precision@50 / Precision@100 & Share of top-ranked flags accepted as valid by reviewers & Needs pilot labels & Tests queue quality.\\
-Reviewer acceptance rate & Share of model flags marked valid by analysts & Needs pilot labels & Tracks usefulness.\\
-False-positive reasons & Reviewer-coded reasons for rejected flags & Needs pilot labels & Guides improvement.\\
-\bottomrule
-\end{tabular}
-\end{table}
+The current run supports basic queue metrics directly: 628 review leads, a 2.91\% flag rate, and a 97.09\% first-pass triage reduction. Reviewer-quality metrics such as precision@50, precision@100, and reviewer acceptance rate require a human-review pilot; they are listed as future validation metrics in Appendix C.
 
 \subsection{User Workflow}
 The target user is a mortgage valuation reviewer or valuation analyst. The analyst is not expected to inspect model internals or rerun training code. The expected workflow is: input transaction data, score transactions, inspect the queue, review evidence, make a final professional decision, and save feedback for future improvement.
@@ -342,6 +325,41 @@ Real estate prices are spatially concentrated. The pipeline generates a spatial 
 \label{fig:eda_maps}
 \end{figure}
 
+\subsection{Feature Relationships}
+The EDA confirms that pricing variation is not explained by a single variable. Figure \ref{fig:corr_heatmap} shows that sale price is most strongly associated with size, grade, bathrooms, view, and waterfront-related signals among the core numeric fields. This supports the use of a non-linear model while still keeping the business interpretation grounded in familiar housing attributes.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.84\linewidth]{report_correlation_heatmap.png}
+\caption{Correlation heatmap of core housing variables}
+\label{fig:corr_heatmap}
+\end{figure}
+
+Figures \ref{fig:price_grade} and \ref{fig:waterfront_view} provide domain-facing EDA views. Median price increases with property grade, while waterfront and stronger view ratings are associated with higher median sale prices. These relationships are descriptive, not causal, but they explain why grade, view, waterfront, and spatial features appear in the model.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.82\linewidth]{report_price_by_grade.png}
+\caption{Median sale price and transaction volume by property grade}
+\label{fig:price_grade}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.88\linewidth]{report_price_by_waterfront_view.png}
+\caption{Median sale price by waterfront status and view rating}
+\label{fig:waterfront_view}
+\end{figure}
+
+Figure \ref{fig:zipcode_distribution} shows that transactions are unevenly distributed across zipcodes. This motivates zipcode-based market segmentation and also explains why low-support monitoring remains necessary when moving beyond the static dataset.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.82\linewidth]{report_zipcode_distribution.png}
+\caption{Top 15 zipcodes by transaction count}
+\label{fig:zipcode_distribution}
+\end{figure}
+
 \subsection{Prototype Review Dashboard}
 The current system includes a Streamlit prototype dashboard for valuation review. Its purpose is not to replace the statistical report or the reproducible pipeline. Instead, it translates the technical outputs into an inspectable review surface for a valuation analyst. The dashboard reads the generated property intelligence table, model-flagged case list, slice summaries, and trust diagnostics, then exposes them through map, table, and summary views.
 
@@ -361,6 +379,15 @@ Sidebar filters & Review outcome, zipcode, price band, evidence strength, slice 
 \bottomrule
 \end{tabular}
 \end{table}
+
+Figure \ref{fig:dashboard_screenshot} shows the current Streamlit prototype. The screenshot is included to document the actual stakeholder-facing interface: filters are placed on the left, queue metrics are shown before the map, and the warning banner states that a model flag is a triage signal rather than proof that the price is wrong.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.96\linewidth]{dashboard_review_dashboard.png}
+\caption{Prototype Streamlit dashboard for pricing review triage}
+\label{fig:dashboard_screenshot}
+\end{figure}
 
 The map interaction is intentionally separated into focused and contextual modes. A reviewer can first inspect only model-flagged cases, then switch to all sales to understand whether a highlighted property sits in a dense local market or in a sparse evidence region. Colors encode review outcome: over-valued candidates, under-valued candidates, limited-evidence records, and within-range sales are visually distinct. Point size follows the absolute anomaly score, so stronger deviations are easier to notice without reading the table first. This design helps new users understand that the map is a triage aid: it reveals where to look, not what final decision to make.
 
@@ -418,13 +445,7 @@ The official valuation core is XGBoost, implemented through \texttt{XGBRegressor
 
 All model candidates use the same train-fitted preprocessing contract. Numeric features are imputed with the training median. Categorical features are imputed with the training mode and encoded with one-hot encoding using \texttt{handle\_unknown=ignore}. Numeric scaling is applied for the linear regression and median-baseline pipelines, but not for tree-based models. This shared preprocessing design makes the baseline comparison auditable even though the estimators have different modeling assumptions.
 
-The current run selected the raw-target XGBoost configuration. Log-target XGBoost candidates were evaluated to address heteroscedasticity, but the validation-driven selection favored the raw target. The selection score is:
-\[
-    \text{score} = \text{validation RMSE}
-    + 0.20 \times \text{validation Q5 MAE}
-    + 0.05 \times |\text{validation Q5 mean signed error}|.
-\]
-Lower scores are preferred. This policy prioritizes overall RMSE while penalizing poor upper-tail behavior.
+The current run selected the raw-target XGBoost configuration. Log-target XGBoost candidates were evaluated to address heteroscedasticity, but the validation results favored the raw target. Model selection used validation RMSE as the primary criterion, with Q5 MAE and Q5 signed error checked as secondary diagnostics to avoid selecting a model that performed well on average but failed in the highest price band. This simplified policy is easier to audit than treating the project as a broad hyperparameter optimization exercise.
 
 \begin{table}[H]
 \centering
@@ -439,7 +460,7 @@ Categorical missing values & Most-frequent imputation fitted on training data on
 Categorical encoding & One-hot encoding with unknown categories ignored at transform time.\\
 Numeric scaling & Used for linear regression and median baseline; not used for tree models.\\
 Target candidates & Raw target and log-transformed XGBoost variants.\\
-Selection objective & Lowest validation score combining RMSE, Q5 MAE, and Q5 signed-error penalty.\\
+Selection objective & Validation RMSE primary; Q5 MAE and Q5 signed error used as upper-tail diagnostics.\\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -552,7 +573,7 @@ Q5 & 575 & 90.4\% & \$847,102\\
 \label{fig:coverage_interval_width}
 \end{figure}
 
-Figure \ref{fig:coverage_interval_width} makes the central uncertainty tradeoff visible. Coverage remains above the 90\% empirical target in all observed price quintiles, but interval width rises sharply for Q5. This is not a cosmetic issue: a high-end property may need a substantially wider fair-value range before the system is willing to flag it. The design is conservative by construction, because under-covering expensive homes would create a misleading review queue.
+Figure \ref{fig:coverage_interval_width} makes the central uncertainty tradeoff visible. Coverage remains above the 90\% empirical target in all observed price quintiles, but interval width rises sharply for Q5. This is the sharpness-versus-coverage tradeoff: high coverage is useful only if intervals remain narrow enough to support decisions. The current system is conservative, but Q5 intervals are wide enough that a high-price flag should be treated as a prompt for comparable-sale review rather than a direct conclusion about mispricing.
 
 \subsection{Held-Out Error by Price Band}
 The error analysis shows heteroscedasticity: absolute error increases in higher price bands. Q5 has the highest MAE and RMSE, but its MAPE remains 13.02\%, which is close to the global test MAPE of 12.11\%. This suggests that high-end properties have larger dollar uncertainty but not proportionally catastrophic percentage error. Q1 has the highest percentage error at 17.15\%, even though its dollar MAE is low. This means entry-price homes require separate attention in the dashboard and future diagnostics: a small dollar miss can still represent a large percentage error for lower-priced properties.
@@ -857,25 +878,7 @@ The most important dashboard design decision is to separate flagged review cases
 
 The dashboard also makes uncertainty visible. A sale can be inside the expected range, outside the expected range, or supported by limited local evidence. These states are displayed alongside interval bounds and slice-risk labels so the reviewer can distinguish ``strong review candidate'' from ``weak local evidence; inspect cautiously.'' This is aligned with the system's core purpose: model-assisted prioritization, not automated appraisal.
 
-The dashboard should be treated as an MVP review surface. It demonstrates that the model outputs can be used by stakeholders, but it does not yet provide the controls required for a production review environment. Table \ref{tab:dashboard_roadmap} keeps the roadmap limited to features that directly support the valuation review workflow.
-
-\begin{table}[H]
-\centering
-\caption{Prototype dashboard improvement roadmap}
-\label{tab:dashboard_roadmap}
-\begin{tabular}{p{0.25\linewidth}p{0.36\linewidth}p{0.29\linewidth}}
-\toprule
-\textbf{Capability} & \textbf{Review value} & \textbf{Priority}\\
-\midrule
-Property detail page & Shows full transaction context, model interval, comparable-sale notes, SHAP drivers, and reviewer history on one page & High\\
-Saved reviewer decisions & Stores valid flag, false positive, uncertain, reason code, and reviewer notes & High\\
-Export queue & Allows analysts to export filtered cases for committee review or documentation & Medium\\
-Map clustering & Reduces point overlap and makes dense urban areas easier to inspect & Medium\\
-Reviewer notes & Captures comparable-sale reasoning and qualitative evidence not present in the dataset & High\\
-Basic audit log & Records reviewer label, note, and timestamp for feedback analysis & Medium\\
-\bottomrule
-\end{tabular}
-\end{table}
+The dashboard should be treated as an MVP review surface. It demonstrates that the model outputs can be used by stakeholders, but it does not yet provide the controls required for a production review environment. A short, review-focused improvement roadmap is provided in Appendix C.
 
 \subsection{Presentation Deliverable}
 The final presentation should focus on the same scoped story as this report: one business problem, one reproducible data science workflow, one selected valuation model, one uncertainty-aware review queue, and one prototype dashboard. It should avoid presenting DC-REIF as an automated appraisal engine. The recommended presentation flow is: business problem, dataset and preprocessing, EDA insights, modeling and evaluation, uncertainty and flagged cases, dashboard demonstration, limitations, and recommendations.
@@ -883,30 +886,7 @@ The final presentation should focus on the same scoped story as this report: one
 \section{Limitations and Future Work}
 
 \subsection{Future Monitoring Plan}
-If DC-REIF is used with new transactions, the main risk becomes drift. Real estate markets change through seasonality, interest rates, inventory, neighborhood development, and buyer behavior. A model trained on static historical data can remain technically runnable while becoming operationally stale. The future monitoring plan should therefore focus on the minimum signals needed to keep a valuation review workflow reliable.
-
-\begin{table}[H]
-\centering
-\caption{Future monitoring plan for repeated use}
-\label{tab:monitoring_plan}
-\begin{tabular}{p{0.24\linewidth}p{0.38\linewidth}p{0.28\linewidth}}
-\toprule
-\textbf{Monitor} & \textbf{What to track} & \textbf{Recommended action}\\
-\midrule
-Data freshness & Last ingestion date, number of new records, stale source files & Block scoring or warn users when data is outdated.\\
-Schema drift & Missing columns, new categories, changed data types & Fail validation before model scoring.\\
-Missingness drift & Missingness rates for \texttt{waterfront}, \texttt{view}, renovation fields, and location & Investigate source changes or imputation degradation.\\
-Price distribution drift & Median, mean, upper-tail quantiles, log-price distribution & Recalibrate thresholds and retrain if market levels shift.\\
-Zipcode/segment drift & Segment counts, new zipcodes, low-support segment share & Add fallback rules or collect more evidence before strong flags.\\
-Model error drift & MAPE, MAE, RMSE on newly reviewed or delayed-outcome records & Retrain when error exceeds policy tolerance.\\
-Coverage drift & Empirical interval coverage by price band and segment & Recalibrate interval half-widths or widen high-risk intervals.\\
-Flag-rate drift & Share of transactions sent to review queue by week or month & Detect overly noisy or overly silent review behavior.\\
-Reviewer outcome drift & Precision@K, acceptance rate, false-positive reasons & Improve thresholds, features, and dashboard context.\\
-\bottomrule
-\end{tabular}
-\end{table}
-
-A practical retraining plan should combine schedule-based and trigger-based rules. The same chronological split principle should be retained so that validation continues to reflect future-facing deployment rather than random historical mixing.
+If DC-REIF is used with new transactions, the main risk becomes drift. Real estate markets change through seasonality, interest rates, inventory, neighborhood development, and buyer behavior. A model trained on static historical data can remain technically runnable while becoming operationally stale. Future work should monitor data freshness, schema drift, missingness drift, price distribution drift, MAPE drift, coverage drift, and flag-rate drift. A more detailed monitoring checklist is provided in Appendix C.
 
 \subsection{Limitations and Controls}
 The current system is credible as a course-level decision-support project, but it is not production-ready in a regulatory appraisal sense. Table \ref{tab:risk_controls} states the main limitations and the direct controls or future work needed to address them.
@@ -932,28 +912,26 @@ Regulatory misuse & Users may treat model output as an appraisal decision & Posi
 \end{table}
 
 \section{Conclusion}
-DC-REIF satisfies the full data science workflow required by the final project brief while staying scoped to model-assisted real estate pricing anomaly detection for valuation review. It defines a business problem, validates and preprocesses raw housing data, performs exploratory analysis, implements and evaluates machine learning models, adds uncertainty-aware anomaly detection, presents explainability outputs, and translates results into an analyst-facing review workflow.
+DC-REIF completes the required data science process while staying focused on one practical task: model-assisted pricing anomaly detection for valuation review. The project validates and preprocesses housing data, explores key price patterns, trains and evaluates candidate models, adds empirical uncertainty intervals, and turns the results into a prototype analyst review workflow.
 
-The current local results are strong for a reproducible academic data science system: XGBoost achieves held-out test $R^2 = 0.900$ and MAPE = 12.11\%, while the localized interval layer achieves 96.1\% overall empirical coverage and 90.4\% coverage in the highest observed price band on the held-out test protocol. The operational output is a focused full-portfolio review queue of 628 model-flagged transactions out of 21,597 scored records.
-
-The project should be presented as a model-assisted triage system, not as an automated appraisal authority. Its strongest contribution is not only predictive accuracy, but the integration of data governance, leakage-aware modeling, empirical uncertainty diagnostics, SHAP-based model-behavior explanation, and a prototype review dashboard. Its main remaining improvement is to collect human review labels and current-market data so that precision@K, reviewer acceptance, and drift controls can be measured responsibly.
+The strongest contribution is the integration of leakage-aware modeling, uncertainty reporting, model-behavior explanation, and a review dashboard that reduces the first-pass queue from 21,597 transactions to 628 review leads. These leads are not proof of mispricing; they are cases that deserve human attention. The next step is to collect reviewer labels so precision@K, acceptance rate, and drift controls can be measured responsibly.
 
 \section{Team Contribution Evidence}
-The repository evidence indicates work across the full data science lifecycle. If individual names are required by the final submission portal, the team should replace the role labels in Table \ref{tab:contribution} with member names before submission.
+The repository evidence indicates work across the full data science lifecycle. The available git history identifies \textbf{NhatThanh} as the repository author. If the submitted team includes additional members outside the local git history, their names should be added before final export.
 
 \begin{table}[H]
 \centering
 \caption{Contribution evidence by project workstream}
 \label{tab:contribution}
-\begin{tabular}{p{0.25\linewidth}p{0.60\linewidth}}
+\begin{tabular}{p{0.20\linewidth}p{0.27\linewidth}p{0.38\linewidth}}
 \toprule
-\textbf{Workstream} & \textbf{Evidence in project}\\
+\textbf{Contributor} & \textbf{Workstream} & \textbf{Evidence in project}\\
 \midrule
-Data engineering & Data download, schema validation, cleaning, feature dataset generation, reproducibility contracts.\\
-Modeling and evaluation & Chronological split, XGBoost selection, baseline comparison, conformal calibration, interval diagnostics.\\
-Explainability and reporting & Feature importance, SHAP summary, local top-driver labels, trust summary, report-ready notebook cells.\\
-Dashboard and storytelling & Streamlit dashboard, map review mode, sales list, market-slice summary, trust panel, limitation documentation.\\
-Testing and submission readiness & Unit tests, README quickstart, notebook rerun path, reproducible artifact generation.\\
+NhatThanh & Data engineering & Data download, schema validation, cleaning, feature dataset generation, reproducibility contracts.\\
+NhatThanh & Modeling and evaluation & Chronological split, XGBoost selection, baseline comparison, conformal calibration, interval diagnostics.\\
+NhatThanh & Explainability and reporting & Feature importance, SHAP summary, local top-driver labels, trust summary, report-ready notebook cells.\\
+NhatThanh & Dashboard and storytelling & Streamlit prototype dashboard, map review mode, sales list, market-slice summary, trust panel, limitation documentation.\\
+NhatThanh & Testing and peer-review response & Unit tests, README quickstart, notebook rerun path, report revisions responding to technical review feedback on conformal scope, evaluation universe, dashboard clarity, and limitations.\\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -978,6 +956,11 @@ Testing and submission readiness & Unit tests, README quickstart, notebook rerun
 \path{outputs/tables/test_interval_coverage_by_price_band.csv} & Coverage and interval width by price band.\\
 \path{outputs/tables/model_flagged_cases.csv} & Human-review queue with local review notes and top drivers.\\
 \path{outputs/tables/synthetic_anomaly_recall.csv} & Synthetic price-shock sanity check for pseudo-recall.\\
+\path{report/figures/dashboard_review_dashboard.png} & Actual screenshot of the Streamlit prototype dashboard.\\
+\path{report/figures/report_correlation_heatmap.png} & EDA correlation heatmap for core numeric variables.\\
+\path{report/figures/report_price_by_grade.png} & EDA chart for median price and volume by property grade.\\
+\path{report/figures/report_price_by_waterfront_view.png} & EDA chart for price by waterfront status and view rating.\\
+\path{report/figures/report_zipcode_distribution.png} & EDA chart for top zipcode transaction counts.\\
 \path{outputs/figures/shap_summary.png} & Global SHAP explanation plot.\\
 \path{outputs/figures/residual_vs_predicted.png} & Error diagnostic for predicted price levels.\\
 \path{outputs/figures/residual_variance_by_predicted_bin.png} & Heteroscedasticity diagnostic by predicted fair-value bin.\\
@@ -1000,6 +983,66 @@ To refresh the report-specific figures after rerunning the pipeline:
 python scripts/evaluate_synthetic_anomalies.py
 python report/build_report_figures.py
 \end{verbatim}
+
+\section{Appendix C: Supplemental Review Metrics and Roadmap}
+The main report keeps the review workflow focused. This appendix lists additional metrics and roadmap items that are useful for future iterations but are not required to interpret the current model results.
+
+\begin{table}[H]
+\centering
+\caption{Supplemental review KPI framework}
+\label{tab:business_kpis}
+\begin{tabular}{p{0.24\linewidth}p{0.31\linewidth}p{0.19\linewidth}p{0.16\linewidth}}
+\toprule
+\textbf{KPI} & \textbf{Definition} & \textbf{Current status} & \textbf{Use}\\
+\midrule
+Review queue size & Number of full-portfolio records flagged by the interval decision layer & 628 of 21,597 & Defines initial workload.\\
+Flag rate & Flagged records divided by scored records & 2.91\% & Monitors queue size.\\
+First-pass triage reduction & Records not initially sent to the review queue divided by scored records & 97.09\% & Shows workload reduction.\\
+Precision@50 / Precision@100 & Share of top-ranked flags accepted as valid by reviewers & Needs pilot labels & Tests queue quality.\\
+Reviewer acceptance rate & Share of model flags marked valid by analysts & Needs pilot labels & Tracks usefulness.\\
+False-positive reasons & Reviewer-coded reasons for rejected flags & Needs pilot labels & Guides improvement.\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Prototype dashboard improvement roadmap}
+\label{tab:dashboard_roadmap}
+\begin{tabular}{p{0.25\linewidth}p{0.36\linewidth}p{0.29\linewidth}}
+\toprule
+\textbf{Capability} & \textbf{Review value} & \textbf{Priority}\\
+\midrule
+Property detail page & Shows transaction context, model interval, comparable-sale notes, SHAP drivers, and reviewer history on one page & High\\
+Saved reviewer decisions & Stores valid flag, false positive, uncertain, reason code, and reviewer notes & High\\
+Export queue & Allows analysts to export filtered cases for committee review or documentation & Medium\\
+Map clustering & Reduces point overlap and makes dense urban areas easier to inspect & Medium\\
+Reviewer notes & Captures comparable-sale reasoning and qualitative evidence not present in the dataset & High\\
+Basic audit log & Records reviewer label, note, and timestamp for feedback analysis & Medium\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Future monitoring checklist}
+\label{tab:monitoring_plan}
+\begin{tabular}{p{0.24\linewidth}p{0.38\linewidth}p{0.28\linewidth}}
+\toprule
+\textbf{Monitor} & \textbf{What to track} & \textbf{Recommended action}\\
+\midrule
+Data freshness & Last ingestion date, number of new records, stale source files & Warn users when data is outdated.\\
+Schema drift & Missing columns, new categories, changed data types & Fail validation before scoring.\\
+Missingness drift & Missingness rates for \texttt{waterfront}, \texttt{view}, renovation fields, and location & Investigate source changes.\\
+Price distribution drift & Median, mean, upper-tail quantiles, log-price distribution & Recalibrate thresholds or retrain.\\
+Zipcode/segment drift & Segment counts, new zipcodes, low-support segment share & Add fallback rules or collect more evidence.\\
+Model error drift & MAPE, MAE, RMSE on reviewed or delayed-outcome records & Retrain when error exceeds tolerance.\\
+Coverage drift & Empirical interval coverage by price band and segment & Recalibrate interval half-widths.\\
+Flag-rate drift & Share of transactions sent to review queue & Detect overly noisy or overly silent behavior.\\
+Reviewer outcome drift & Precision@K, acceptance rate, false-positive reasons & Improve thresholds and dashboard context.\\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \newpage
 \begin{thebibliography}{10}
