@@ -1,23 +1,25 @@
 # Reference Metrics
 
-These metrics document the validated reference run for the runnable DC-REIF framework. They are provided for comparison after users regenerate outputs locally.
+This repository is a runnable framework. Reference metrics are generated locally rather than committed as fixed final results.
 
-- selected model: `xgboost`
-- validation RMSE: `111003.71`
-- test RMSE: `118687.65`
-- validation MAE: `65533.19`
-- test MAE: `69904.96`
-- validation R2: `0.8960`
-- test R2: `0.9007`
-- segment count: `3`
-- silhouette score: `0.1774`
-- davies-bouldin index: `1.7775`
-- interval method: `conformal_prediction_residual_quantile_localized`
-- interval coverage: `0.9330`
-- average interval width: `372280.01`
-- conformal q-hat: `140076.25`
-- anomaly counts:
-  - within expected range: `17555`
-  - potentially over-valued: `665`
-  - potentially under-valued: `316`
-  - insufficient history: `3061`
+After code changes to the split policy, segmentation policy, feature set, or uncertainty policy, old reference values are no longer authoritative. Reproduce the current values with:
+
+```bash
+python scripts/quickstart.py --install
+```
+
+Primary generated metric files:
+
+- `outputs/tables/valuation_metrics.csv`
+- `outputs/tables/model_baseline_comparison.csv`
+- `outputs/tables/test_error_by_price_band.csv`
+- `outputs/tables/test_interval_coverage_by_price_band.csv`
+- `outputs/tables/local_conformal_by_price_band.csv`
+- `outputs/tables/local_conformal_by_segment.csv`
+- `outputs/tables/interval_width_predicted_price_band.csv`
+- `outputs/tables/interval_width_segment_label.csv`
+- `outputs/tables/anomaly_threshold_sensitivity.csv`
+- `outputs/reports/local_conformal_calibration_summary.json`
+- `outputs/reports/uncertainty_metrics.json`
+
+The previous validated run used KMeans segmentation and an older abstention policy. It should be treated as a legacy baseline, not as the expected output for the current framework.

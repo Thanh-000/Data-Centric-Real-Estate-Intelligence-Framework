@@ -103,6 +103,47 @@ def slice_metrics(dataframe: pd.DataFrame, group_columns: Iterable[str]) -> dict
     return outputs
 
 
+def threshold_sensitivity(dataframe: pd.DataFrame, thresholds: Iterable[float] = (0.05, 0.10, 0.15, 0.20)) -> pd.DataFrame:
+    frame = dataframe.loc[dataframe["fair_value_hat"].notna()].copy()
+    if frame.empty:
+        return pd.DataFrame(
+            columns=["threshold", "scored_count", "overvalued_count", "undervalued_count", "total_flagged", "flagged_rate"]
+        )
+    relative_gap = (frame["observed_price"] - frame["fair_value_hat"]) / frame["fair_value_hat"].replace(0, np.nan)
+    rows: list[dict[str, object]] = []
+    for threshold in thresholds:
+        overvalued = relative_gap >= threshold
+        undervalued = relative_gap <= -threshold
+        total_flagged = int((overvalued | undervalued).sum())
+        rows.append(
+            {
+                "threshold": float(threshold),
+                "scored_count": int(relative_gap.notna().sum()),
+                "overvalued_count": int(overvalued.sum()),
+                "undervalued_count": int(undervalued.sum()),
+                "total_flagged": total_flagged,
+                "flagged_rate": float(total_flagged / max(relative_gap.notna().sum(), 1)),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def interval_width_summary(dataframe: pd.DataFrame, group_columns: Iterable[str]) -> dict[str, pd.DataFrame]:
+    frame = with_product_bands(dataframe.loc[dataframe["interval_width"].notna()].copy())
+    outputs: dict[str, pd.DataFrame] = {}
+    for column in group_columns:
+        if column not in frame.columns:
+            continue
+        summary = (
+            frame.groupby(column, dropna=False)["interval_width"]
+            .describe(percentiles=[0.25, 0.5, 0.75])
+            .reset_index()
+            .rename(columns={"25%": "p25", "50%": "median", "75%": "p75"})
+        )
+        outputs[column] = summary.sort_values("count", ascending=False).reset_index(drop=True)
+    return outputs
+
+
 def write_analysis_tables(tables: dict[str, pd.DataFrame], output_dir: Path, prefix: str) -> dict[str, Path]:
     ensure_directory(output_dir)
     paths: dict[str, Path] = {}

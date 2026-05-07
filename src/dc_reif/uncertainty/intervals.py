@@ -26,7 +26,7 @@ def conformal_quantile(residuals: pd.Series, alpha: float = 0.1) -> float:
     return float(np.quantile(absolute_residuals, quantile_rank, method="higher"))
 
 
-def _prediction_band_edges(predictions: pd.Series, n_bands: int = 5) -> list[float]:
+def _prediction_band_edges(predictions: pd.Series, n_bands: int = 10) -> list[float]:
     valid = predictions.dropna().astype(float)
     if valid.empty:
         return []
@@ -125,12 +125,17 @@ def calibrate_local_conformal(
     prediction_rows["q_hat"] = prediction_rows["q_hat"].fillna(global_q_hat).clip(lower=0.9 * global_q_hat)
 
     calibration_summary = {
-        "interval_method": "conformal_prediction_residual_quantile_localized",
+        "interval_method": "conformal_prediction_residual_quantile_by_predicted_price_decile_and_segment",
         "global_q_hat": float(global_q_hat),
         "price_band_edges": [float(edge) for edge in price_band_edges],
         "min_price_band_samples": int(min_price_band_samples),
         "min_segment_samples": int(min_segment_samples),
         "average_local_q_hat": float(prediction_rows["q_hat"].mean()),
+        "min_local_q_hat": float(prediction_rows["q_hat"].min()),
+        "median_local_q_hat": float(prediction_rows["q_hat"].median()),
+        "max_local_q_hat": float(prediction_rows["q_hat"].max()),
+        "average_interval_width_expected": float(2 * prediction_rows["q_hat"].mean()),
+        "global_interval_width_expected": float(2 * global_q_hat),
     }
     artifacts = LocalCalibrationArtifacts(
         global_q_hat=float(global_q_hat),
@@ -156,8 +161,14 @@ def build_prediction_intervals(predictions: pd.Series, q_hat: float | pd.Series)
 
 def evaluate_interval_quality(actual: pd.Series, lower: pd.Series, upper: pd.Series) -> dict[str, float]:
     coverage = ((actual >= lower) & (actual <= upper)).mean()
-    average_width = (upper - lower).mean()
+    widths = upper - lower
+    average_width = widths.mean()
     return {
         "empirical_coverage": float(coverage),
         "average_interval_width": float(average_width),
+        "median_interval_width": float(widths.median()),
+        "p25_interval_width": float(widths.quantile(0.25)),
+        "p75_interval_width": float(widths.quantile(0.75)),
+        "min_interval_width": float(widths.min()),
+        "max_interval_width": float(widths.max()),
     }

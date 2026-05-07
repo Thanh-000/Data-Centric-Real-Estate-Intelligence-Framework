@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.dummy import DummyRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error, mean_squared_error, r2_score
 from sklearn.pipeline import Pipeline
@@ -39,6 +40,7 @@ class ValuationArtifacts:
     valuation_metrics: pd.DataFrame
     fair_value_hat_oof: pd.Series
     fair_value_hat_test: pd.Series
+    fair_value_hat_all: pd.Series
     validation_predictions: dict[str, pd.Series]
     test_predictions_by_model: dict[str, pd.Series]
     evaluation_summary: dict[str, dict[str, float]]
@@ -58,6 +60,10 @@ class ModelSuiteArtifacts:
 
 def _make_estimator(model_name: str, random_state: int, estimator_params: dict[str, Any] | None = None) -> object:
     estimator_params = estimator_params or {}
+    if model_name in {"median_baseline", "dummy_median"}:
+        params = {"strategy": "median"}
+        params.update(estimator_params)
+        return DummyRegressor(**params)
     if model_name == "linear_regression":
         return LinearRegression(**estimator_params)
     if model_name == "random_forest":
@@ -94,7 +100,7 @@ def official_model_available(model_name: str = OFFICIAL_MODEL_NAME) -> bool:
 
 
 def _scale_numeric(model_name: str) -> bool:
-    return model_name == "linear_regression"
+    return model_name in {"linear_regression", "median_baseline", "dummy_median"}
 
 
 def _transform_target(target: pd.Series, target_strategy: str) -> np.ndarray:
@@ -391,6 +397,7 @@ def evaluate_model_suite(
 
 def fit_selected_model_artifacts(
     train_validation_df: pd.DataFrame,
+    full_df: pd.DataFrame,
     test_df: pd.DataFrame,
     feature_columns: list[str],
     target_column: str,
@@ -401,7 +408,7 @@ def fit_selected_model_artifacts(
     target_strategy: str = "raw",
     high_price_weight: float = 1.0,
     high_price_quantile: float = 0.8,
-) -> tuple[Pipeline, pd.Series, pd.Series]:
+) -> tuple[Pipeline, pd.Series, pd.Series, pd.Series]:
     train_weights = _high_price_weights(
         train_validation_df,
         target_column=target_column,
@@ -435,7 +442,12 @@ def fit_selected_model_artifacts(
         index=test_df.index,
         name="fair_value_hat_test",
     )
-    return final_pipeline, fair_value_hat_oof, fair_value_hat_test
+    fair_value_hat_all = pd.Series(
+        _predict_pipeline(final_pipeline, full_df, feature_columns=feature_columns, target_strategy=target_strategy),
+        index=full_df.index,
+        name="fair_value_hat_all",
+    )
+    return final_pipeline, fair_value_hat_oof, fair_value_hat_test, fair_value_hat_all
 
 
 def train_and_select_model(
@@ -507,8 +519,10 @@ def train_and_select_model(
     chosen_row = selection_summary.iloc[0]
     chosen_config = next(config_option for config_option in search_space if config_option.name == chosen_row["config_name"])
 
-    final_pipeline, fair_value_hat_oof, fair_value_hat_test = fit_selected_model_artifacts(
+    full_df = pd.concat([train_validation_df, test_df], axis=0).sort_values(["date", "id"])
+    final_pipeline, fair_value_hat_oof, fair_value_hat_test, fair_value_hat_all = fit_selected_model_artifacts(
         train_validation_df=train_validation_df,
+        full_df=full_df,
         test_df=test_df,
         feature_columns=feature_columns,
         target_column=target_column,
@@ -570,6 +584,7 @@ def train_and_select_model(
         valuation_metrics=valuation_metrics,
         fair_value_hat_oof=fair_value_hat_oof,
         fair_value_hat_test=fair_value_hat_test,
+        fair_value_hat_all=fair_value_hat_all,
         validation_predictions={OFFICIAL_MODEL_NAME: final_validation_pred},
         test_predictions_by_model={OFFICIAL_MODEL_NAME: fair_value_hat_test},
         evaluation_summary=evaluation_summary,

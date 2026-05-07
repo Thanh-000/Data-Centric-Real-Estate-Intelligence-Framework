@@ -75,8 +75,50 @@ def create_eda_figures(dataframe: pd.DataFrame, figures_dir: Path) -> dict[str, 
     return outputs
 
 
+def create_residual_diagnostics(dataframe: pd.DataFrame, figures_dir: Path) -> dict[str, Path]:
+    ensure_directory(figures_dir)
+    outputs: dict[str, Path] = {}
+    scored = dataframe.loc[dataframe["fair_value_hat"].notna()].copy()
+    if scored.empty:
+        return outputs
+
+    scored["residual"] = scored["observed_price"] - scored["fair_value_hat"]
+
+    fig, ax = plt.subplots(figsize=(9, 5))
+    ax.scatter(scored["fair_value_hat"], scored["residual"], s=10, alpha=0.45, color="#33658a")
+    ax.axhline(0, color="#2f4858", linewidth=1)
+    ax.set_title("Residuals vs Predicted Fair Value")
+    ax.set_xlabel("Predicted fair value")
+    ax.set_ylabel("Observed minus predicted")
+    fig.tight_layout()
+    outputs["residual_vs_predicted"] = figures_dir / "residual_vs_predicted.png"
+    fig.savefig(outputs["residual_vs_predicted"], dpi=150)
+    plt.close(fig)
+
+    if {"lat", "long"}.issubset(scored.columns):
+        fig, ax = plt.subplots(figsize=(10, 6))
+        limit = scored["residual"].abs().quantile(0.95)
+        scatter = ax.scatter(
+            scored["long"],
+            scored["lat"],
+            c=scored["residual"].clip(lower=-limit, upper=limit),
+            s=8,
+            cmap="coolwarm",
+            alpha=0.55,
+        )
+        fig.colorbar(scatter, ax=ax, label="Residual")
+        ax.set_title("Spatial Residual Pattern")
+        ax.set_xlabel("Longitude")
+        ax.set_ylabel("Latitude")
+        fig.tight_layout()
+        outputs["spatial_residual_map"] = figures_dir / "spatial_residual_map.png"
+        fig.savefig(outputs["spatial_residual_map"], dpi=150)
+        plt.close(fig)
+
+    return outputs
+
+
 def write_summary_report(summary_lines: list[str], path: Path) -> Path:
     ensure_directory(path.parent)
     path.write_text("\n".join(summary_lines), encoding="utf-8")
     return path
-

@@ -1,6 +1,6 @@
 import pandas as pd
 
-from dc_reif.product_analytics import abstention_summary, slice_metrics
+from dc_reif.product_analytics import abstention_summary, interval_width_summary, slice_metrics, threshold_sensitivity
 
 
 def test_product_analytics_reports_abstention_and_slice_metrics():
@@ -50,3 +50,10 @@ def test_product_analytics_reports_abstention_and_slice_metrics():
 
     metrics = slice_metrics(frame, ["zipcode"])
     assert {"mae", "rmse", "interval_coverage", "abstention_rate"}.issubset(metrics["zipcode"].columns)
+
+    sensitivity = threshold_sensitivity(frame, thresholds=[0.05, 0.20])
+    assert sensitivity["threshold"].tolist() == [0.05, 0.20]
+    assert {"overvalued_count", "undervalued_count", "flagged_rate"}.issubset(sensitivity.columns)
+
+    interval = interval_width_summary(frame, ["zipcode"])
+    assert {"p25", "median", "p75", "max"}.issubset(interval["zipcode"].columns)

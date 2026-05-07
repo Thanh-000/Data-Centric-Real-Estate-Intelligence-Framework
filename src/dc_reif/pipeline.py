@@ -19,11 +19,12 @@ from dc_reif.explainability import (
 from dc_reif.feature_store import assert_no_target_leakage, build_feature_matrix
 from dc_reif.governance import clean_king_county_data, load_raw_data, validate_schema, validation_report_frame
 from dc_reif.market_representation import assign_submarket_segments, fit_submarket_clustering
+from dc_reif.product_analytics import interval_width_summary, threshold_sensitivity, write_analysis_tables
 from dc_reif.property_ledger import build_property_ledger
-from dc_reif.reporting import create_eda_figures, save_dataframe, save_json, write_summary_report
+from dc_reif.reporting import create_eda_figures, create_residual_diagnostics, save_dataframe, save_json, write_summary_report
 from dc_reif.uncertainty import build_prediction_intervals, calibrate_local_conformal, evaluate_interval_quality
 from dc_reif.utils import get_logger, write_json
-from dc_reif.valuation_core import chronological_split, train_and_select_model
+from dc_reif.valuation_core import chronological_split, evaluate_model_suite, train_and_select_model
 
 LOGGER = get_logger(__name__)
 
@@ -55,6 +56,15 @@ def _error_by_group(dataframe: pd.DataFrame, group_column: str) -> pd.DataFrame:
                 "count": int(len(frame)),
                 "mae": float((frame["observed_price"] - frame["fair_value_hat"]).abs().mean()),
                 "rmse": float(np.sqrt(np.mean(np.square(frame["observed_price"] - frame["fair_value_hat"])))),
+                "mape": float(
+                    (((frame["observed_price"] - frame["fair_value_hat"]).abs() / frame["observed_price"].replace(0, np.nan)).mean())
+                    * 100
+                ),
+                "wmape": float(
+                    (frame["observed_price"] - frame["fair_value_hat"]).abs().sum()
+                    / max(frame["observed_price"].abs().sum(), 1e-9)
+                    * 100
+                ),
             }
         )
     return pd.DataFrame(rows).sort_values("count", ascending=False).reset_index(drop=True)
@@ -117,12 +127,14 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
             "min_local_cluster": cluster_artifacts.min_local_cluster,
             "feature_columns": cluster_artifacts.feature_columns,
             "selection_details": cluster_artifacts.selection_details,
+            "segmentation_method": cluster_artifacts.segmentation_method,
         },
         config.paths.reports_dir / "cluster_summary.json",
     )
     save_json(
         {
             "selected_k": cluster_artifacts.n_clusters,
+            "segmentation_method": cluster_artifacts.segmentation_method,
             "selection_details": cluster_artifacts.selection_details,
             "feature_columns": cluster_artifacts.feature_columns,
             "selection_grid_file": str(config.paths.tables_dir / "segmentation_selection_grid.csv"),
@@ -136,6 +148,8 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
         train_fraction=config.train_fraction,
         validation_fraction=config.validation_fraction,
         test_fraction=config.test_fraction,
+        train_end_date=config.train_end_date,
+        validation_end_date=config.validation_end_date,
     )
     valuation = train_and_select_model(
         train_df=split_bundle.train_df,
@@ -148,6 +162,21 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
         random_state=config.random_state,
     )
     save_dataframe(valuation.valuation_metrics, config.paths.tables_dir / "valuation_metrics.csv")
+    baseline_suite = evaluate_model_suite(
+        train_df=split_bundle.train_df,
+        validation_df=split_bundle.validation_df,
+        train_validation_df=split_bundle.train_validation_df,
+        test_df=split_bundle.test_df,
+        feature_columns=predictive_features,
+        target_column=config.target_column,
+        model_names=["median_baseline", "linear_regression", "random_forest"],
+        random_state=config.random_state,
+    )
+    model_comparison = pd.concat(
+        [baseline_suite.valuation_metrics, valuation.valuation_metrics.assign(model_name="xgboost_selected")],
+        ignore_index=True,
+    ).sort_values("validation_rmse")
+    save_dataframe(model_comparison, config.paths.tables_dir / "model_baseline_comparison.csv")
     save_dataframe(valuation.selection_summary, config.paths.tables_dir / "xgboost_selection_grid.csv")
     save_json(
         {
@@ -158,6 +187,7 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
             "selection_grid_file": str(config.paths.tables_dir / "xgboost_selection_grid.csv"),
             "selected_validation_rmse": float(valuation.valuation_metrics.loc[0, "validation_rmse"]),
             "selected_test_rmse": float(valuation.valuation_metrics.loc[0, "test_rmse"]),
+            "baseline_comparison_file": str(config.paths.tables_dir / "model_baseline_comparison.csv"),
         },
         config.paths.reports_dir / "xgboost_selection_summary.json",
     )
@@ -165,6 +195,7 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
     fair_value_hat = pd.Series(np.nan, index=modeling_df.index, name="fair_value_hat")
     fair_value_hat.loc[valuation.fair_value_hat_oof.index] = valuation.fair_value_hat_oof
     fair_value_hat.loc[valuation.fair_value_hat_test.index] = valuation.fair_value_hat_test
+    fair_value_hat = fair_value_hat.fillna(valuation.fair_value_hat_all.reindex(modeling_df.index))
 
     calibration_mask = valuation.fair_value_hat_oof.notna()
     calibration_frame = pd.DataFrame(
@@ -250,10 +281,22 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
     )
     property_ledger = build_property_ledger(property_frame)
     save_dataframe(property_ledger, config.paths.tables_dir / "property_intelligence_table.csv")
+    save_dataframe(
+        threshold_sensitivity(property_ledger),
+        config.paths.tables_dir / "anomaly_threshold_sensitivity.csv",
+    )
+    write_analysis_tables(
+        interval_width_summary(property_ledger, ["predicted_price_band", "segment_label"]),
+        config.paths.tables_dir,
+        "interval_width",
+    )
 
     test_frame = property_frame.loc[split_bundle.test_df.index].copy()
     test_frame["evaluation_price_band"] = _price_band(test_frame["observed_price"])
     test_coverage_by_price_band = _coverage_by_group(test_frame.rename(columns={"evaluation_price_band": "price_band"}), "price_band")
+    test_error_by_price_band = _error_by_group(test_frame.rename(columns={"evaluation_price_band": "price_band"}), "price_band")
+    save_dataframe(test_coverage_by_price_band, config.paths.tables_dir / "test_interval_coverage_by_price_band.csv")
+    save_dataframe(test_error_by_price_band, config.paths.tables_dir / "test_error_by_price_band.csv")
     q5_coverage = float(
         test_coverage_by_price_band.loc[test_coverage_by_price_band["price_band"] == "Q5", "empirical_coverage"].iloc[0]
         if (test_coverage_by_price_band["price_band"] == "Q5").any()
@@ -281,6 +324,7 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
     )
 
     eda_figures = create_eda_figures(modeling_df, config.paths.figures_dir)
+    residual_figures = create_residual_diagnostics(property_ledger, config.paths.figures_dir)
     save_json(manifest, config.paths.reports_dir / "raw_manifest_copy.json")
     joblib.dump(
         {
@@ -299,7 +343,7 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
         f"- Selected valuation model: {valuation.model_name}",
         f"- Target strategy: {valuation.target_strategy}",
         f"- High-price sample weight: {valuation.high_price_weight:.2f}",
-        f"- Selected KMeans segments: {cluster_artifacts.n_clusters}",
+        f"- Market segmentation: {cluster_artifacts.segmentation_method} ({cluster_artifacts.n_clusters} segments)",
         f"- Validation report: {config.validation_report_path}",
         f"- Cleaned rows retained: {cleaning_result.summary['rows_out']}",
         f"- Local conformal global q-hat: {calibration_artifacts.global_q_hat:.2f}",
@@ -326,6 +370,8 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
         "segmentation_selection_grid": str(config.paths.tables_dir / "segmentation_selection_grid.csv"),
         "segmentation_selection_summary": str(config.paths.reports_dir / "segmentation_selection_summary.json"),
         "local_conformal_summary": str(config.paths.reports_dir / "local_conformal_calibration_summary.json"),
+        "model_baseline_comparison": str(config.paths.tables_dir / "model_baseline_comparison.csv"),
+        "anomaly_threshold_sensitivity": str(config.paths.tables_dir / "anomaly_threshold_sensitivity.csv"),
         "property_intelligence": str(config.paths.tables_dir / "property_intelligence_table.csv"),
         "feature_importance_plot": str(importance_plot),
         "summary_report": str(summary_report),
@@ -333,5 +379,6 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
     if shap_path:
         outputs["shap_summary"] = str(shap_path)
     outputs.update({name: str(path) for name, path in eda_figures.items()})
+    outputs.update({name: str(path) for name, path in residual_figures.items()})
     LOGGER.info("Pipeline complete.")
     return outputs

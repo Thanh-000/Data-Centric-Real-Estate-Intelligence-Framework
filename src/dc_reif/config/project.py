@@ -73,6 +73,8 @@ class ProjectConfig:
     train_fraction: float = 0.7
     validation_fraction: float = 0.15
     test_fraction: float = 0.15
+    train_end_date: str | None = "2014-12-31"
+    validation_end_date: str | None = "2015-03-31"
     n_splits: int = 5
     alpha: float = 0.1
     target_column: str = "price"
@@ -132,6 +134,8 @@ class ProjectConfig:
         parser.add_argument("--force-download", default=os.getenv("FORCE_DOWNLOAD"))
         parser.add_argument("--output-dir", default=os.getenv("OUTPUT_DIR"))
         parser.add_argument("--alpha", type=float, default=os.getenv("PREDICTION_ALPHA"))
+        parser.add_argument("--train-end-date", default=os.getenv("TRAIN_END_DATE"))
+        parser.add_argument("--validation-end-date", default=os.getenv("VALIDATION_END_DATE"))
         args = parser.parse_args(argv)
 
         config = cls.default()
@@ -155,5 +159,8 @@ class ProjectConfig:
             config.force_download = parse_bool(args.force_download, default=config.force_download)
         if args.alpha is not None:
             config.alpha = float(args.alpha)
+        if args.train_end_date is not None:
+            config.train_end_date = args.train_end_date or None
+        if args.validation_end_date is not None:
+            config.validation_end_date = args.validation_end_date or None
         return config
-

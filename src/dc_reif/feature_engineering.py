@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
+from sklearn.neighbors import BallTree
 
 from dc_reif.config import TARGET_DERIVED_FEATURES
 
@@ -28,7 +29,6 @@ BASE_PREDICTIVE_FEATURES = [
     "sqft_above",
     "sqft_basement",
     "yr_built",
-    "yr_renovated",
     "zipcode",
     "lat",
     "long",
@@ -59,6 +59,10 @@ ENHANCED_PREDICTIVE_FEATURES = [
     "geo_cell",
     "distance_to_seattle_core",
     "distance_to_bellevue_core",
+    "prior_zipcode_median_price",
+    "prior_geo_cell_median_price",
+    "prior_neighbor_median_price",
+    "prior_neighbor_sale_count",
     "grade_living_interaction",
     "waterfront_view_score",
     "location_grade_interaction",
@@ -91,6 +95,37 @@ def _haversine_distance_km(
     a = np.sin(delta_lat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(delta_lon / 2) ** 2
     c = 2 * np.arcsin(np.sqrt(a))
     return earth_radius_km * c
+
+
+def _historical_group_median(df: pd.DataFrame, group_column: str, min_periods: int = 3) -> pd.Series:
+    ordered = df.sort_values(["date", "id"]).copy()
+    median = ordered.groupby(group_column)["price"].transform(
+        lambda series: series.shift(1).expanding(min_periods=min_periods).median()
+    )
+    return median.reindex(df.index)
+
+
+def _historical_neighbor_features(df: pd.DataFrame, radius_km: float = 2.0, min_neighbors: int = 3) -> pd.DataFrame:
+    ordered = df.sort_values(["date", "id"]).copy()
+    output = pd.DataFrame(index=ordered.index)
+    output["prior_neighbor_median_price"] = np.nan
+    output["prior_neighbor_sale_count"] = 0
+
+    if ordered.empty:
+        return output.reindex(df.index)
+
+    coordinates = np.radians(ordered[["lat", "long"]].astype(float).to_numpy())
+    tree = BallTree(coordinates, metric="haversine")
+    neighbor_indices = tree.query_radius(coordinates, r=radius_km / 6371.0)
+    prices = ordered["price"].astype(float).to_numpy()
+
+    for position, neighbors in enumerate(neighbor_indices):
+        prior_neighbors = neighbors[neighbors < position]
+        output.iloc[position, output.columns.get_loc("prior_neighbor_sale_count")] = int(len(prior_neighbors))
+        if len(prior_neighbors) >= min_neighbors:
+            output.iloc[position, output.columns.get_loc("prior_neighbor_median_price")] = float(np.median(prices[prior_neighbors]))
+
+    return output.reindex(df.index)
 
 
 def add_safe_derived_features(dataframe: pd.DataFrame) -> pd.DataFrame:
@@ -126,6 +161,11 @@ def add_safe_derived_features(dataframe: pd.DataFrame) -> pd.DataFrame:
     df["geo_cell"] = df["lat"].round(2).astype("string") + "_" + df["long"].round(2).astype("string")
     df["distance_to_seattle_core"] = _haversine_distance_km(df["lat"], df["long"], 47.6062, -122.3321)
     df["distance_to_bellevue_core"] = _haversine_distance_km(df["lat"], df["long"], 47.6101, -122.2015)
+    df["prior_zipcode_median_price"] = _historical_group_median(df, "zipcode")
+    df["prior_geo_cell_median_price"] = _historical_group_median(df, "geo_cell")
+    neighbor_features = _historical_neighbor_features(df)
+    df["prior_neighbor_median_price"] = neighbor_features["prior_neighbor_median_price"]
+    df["prior_neighbor_sale_count"] = neighbor_features["prior_neighbor_sale_count"]
     df["grade_living_interaction"] = _series_or_default(df, "grade") * _series_or_default(df, "sqft_living")
     df["waterfront_view_score"] = _series_or_default(df, "waterfront").fillna(0) + _series_or_default(df, "view").fillna(0)
     df["location_grade_interaction"] = _series_or_default(df, "grade") * _series_or_default(df, "lat")

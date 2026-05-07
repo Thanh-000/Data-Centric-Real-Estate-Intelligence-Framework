@@ -31,7 +31,7 @@ def infer_feature_types(dataframe: pd.DataFrame, feature_columns: list[str]) -> 
 def build_preprocessor(dataframe: pd.DataFrame, feature_columns: list[str], scale_numeric: bool = False) -> PreprocessingSpec:
     numeric_features, categorical_features = infer_feature_types(dataframe, feature_columns)
 
-    numeric_steps: list[tuple[str, object]] = [("imputer", SimpleImputer(strategy="median"))]
+    numeric_steps: list[tuple[str, object]] = [("imputer", SimpleImputer(strategy="median", keep_empty_features=True))]
     if scale_numeric:
         numeric_steps.append(("scaler", StandardScaler()))
 
@@ -53,4 +53,3 @@ def build_preprocessor(dataframe: pd.DataFrame, feature_columns: list[str], scal
         categorical_features=categorical_features,
         transformer=transformer,
     )
-

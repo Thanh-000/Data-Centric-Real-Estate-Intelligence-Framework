@@ -31,11 +31,11 @@ Suggested implementation:
 - Folium, pydeck, or Plotly Mapbox for spatial review
 - CSV/Parquet outputs from the existing pipeline as the dashboard input
 
-## 2. High Abstention Share
+## 2. Low-Support Coverage Risk
 
 Severity: severe
 
-Current reference result:
+Previous reference result:
 
 - `3061` of approximately `21597` transactions are labeled `insufficient_history`.
 - This is roughly `14%` of the dataset.
@@ -43,6 +43,12 @@ Current reference result:
 Product impact:
 
 An abstention mechanism is methodologically responsible, but a 14% abstention rate is large for a data product. In real estate, low-support cases may include sparse neighborhoods, new builds, unusual high-value homes, waterfront homes, or other edge cases that stakeholders care about most.
+
+Current implementation change:
+
+- The runtime property table now uses fallback scoring from the selected final model so low-support rows remain inspectable.
+- Evidence fields and slice-risk fields carry the caution signal instead of removing the row from review.
+- The pipeline writes `outputs/tables/anomaly_threshold_sensitivity.csv` and `outputs/tables/interval_width_*.csv` so threshold and interval-width behavior can be audited.
 
 Recommended next step:
 
@@ -59,7 +65,7 @@ Current implementation:
 - `scripts/analyze_abstention.py` generates abstention tables by zipcode, segment, predicted price band, observed price band, grade band, house-age band, evidence strength, and slice risk level.
 - `scripts/evaluate_slices.py` generates slice metrics including abstention rate, anomaly rate, MAE, RMSE, MAPE, interval coverage, and average interval width.
 
-Possible remediation paths:
+Remaining remediation paths:
 
 - introduce a fallback global interval when local support is weak
 - lower confidence level for explicit exploratory review modes

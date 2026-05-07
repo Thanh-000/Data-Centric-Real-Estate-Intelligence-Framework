@@ -15,7 +15,10 @@ The official valuation core is XGBoost via `XGBRegressor`. The model is selected
 The validated workflow includes:
 
 - chronological train / validation / test splitting
+- default King County date cutoffs: train through 2014-12-31, validation through 2015-03-31, test after 2015-03-31
 - validation-driven XGBoost configuration selection
+- log-target XGBoost candidates for heteroscedastic sale-price behavior
+- median, linear regression, and random forest baseline comparison
 - leakage-safe preprocessing through a fitted sklearn pipeline
 - out-of-fold fair-value estimates for training-era anomaly analysis
 - forward holdout predictions for test-era evaluation
@@ -40,6 +43,7 @@ the fitted artifacts are generated under:
 - `data/artifacts/xgboost_pipeline.joblib`
 - `data/artifacts/submarket_clustering.joblib`
 - `outputs/tables/valuation_metrics.csv`
+- `outputs/tables/model_baseline_comparison.csv`
 - `outputs/reports/xgboost_selection_summary.json`
 
 These files are intentionally ignored by Git. They can be regenerated from source, configuration, and the downloaded dataset.

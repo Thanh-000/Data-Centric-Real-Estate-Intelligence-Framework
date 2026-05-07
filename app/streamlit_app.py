@@ -9,6 +9,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 import pandas as pd
+import pydeck as pdk
 import streamlit as st
 
 from dc_reif.product_analytics import with_product_bands
@@ -31,6 +32,16 @@ def filter_multiselect(dataframe: pd.DataFrame, column: str, label: str) -> pd.D
     if not selected:
         return dataframe
     return dataframe.loc[dataframe[column].astype(str).isin(selected)]
+
+
+def anomaly_color(label: str) -> list[int]:
+    if label == "potentially_over_valued":
+        return [190, 64, 55, 180]
+    if label == "potentially_under_valued":
+        return [45, 125, 141, 180]
+    if label == "insufficient_history":
+        return [120, 120, 120, 140]
+    return [80, 145, 90, 120]
 
 
 def main() -> None:
@@ -70,8 +81,43 @@ def main() -> None:
 
     with map_tab:
         if {"lat", "long"}.issubset(filtered.columns):
-            map_frame = filtered.loc[filtered["lat"].notna() & filtered["long"].notna(), ["lat", "long"]].copy()
-            st.map(map_frame.rename(columns={"long": "lon"}), latitude="lat", longitude="lon", zoom=8)
+            map_frame = filtered.loc[filtered["lat"].notna() & filtered["long"].notna()].copy()
+            if map_frame.empty:
+                st.info("No rows match the current map filters.")
+            else:
+                map_frame["color"] = map_frame["anomaly_flag"].astype(str).map(anomaly_color)
+                map_frame["radius"] = (
+                    map_frame["anomaly_score"].abs().fillna(0).clip(lower=0.03, upper=0.4) * 500
+                )
+                layer = pdk.Layer(
+                    "ScatterplotLayer",
+                    data=map_frame,
+                    get_position="[long, lat]",
+                    get_fill_color="color",
+                    get_radius="radius",
+                    pickable=True,
+                    opacity=0.75,
+                )
+                tooltip = {
+                    "html": (
+                        "<b>{anomaly_flag}</b><br/>"
+                        "Property: {property_id}<br/>"
+                        "Observed: {observed_price}<br/>"
+                        "Fair value: {fair_value_hat}<br/>"
+                        "Score: {anomaly_score}"
+                    )
+                }
+                st.pydeck_chart(
+                    pdk.Deck(
+                        layers=[layer],
+                        initial_view_state=pdk.ViewState(
+                            latitude=float(map_frame["lat"].median()),
+                            longitude=float(map_frame["long"].median()),
+                            zoom=9,
+                        ),
+                        tooltip=tooltip,
+                    )
+                )
         else:
             st.info("Latitude/longitude columns are unavailable. Re-run the current pipeline version.")
 

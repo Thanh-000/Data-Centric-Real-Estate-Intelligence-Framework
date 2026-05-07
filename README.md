@@ -11,11 +11,11 @@ The system operates on realized **sale-price** data only. Its downstream decisio
 The active workflow contains one public system only:
 
 - **Data governance and integrity:** automated download, checksum verification, schema validation, deterministic cleaning, and quality flags
-- **Feature policy:** leakage-safe structural, temporal, renovation, and geospatial-context features derived from the King County dataset only
+- **Feature policy:** leakage-safe structural, temporal, renovation, historical-spatial, and geospatial-context features derived from the King County dataset only
 - **Valuation core:** `XGBoost`
-- **Contextual market grouping:** `KMeans` used as market-context encoding, not as a definitive market-boundary estimate
-- **Uncertainty layer:** localized conformal prediction residual quantile intervals
-- **Decision support:** Pricing Anomaly Detection on sale-price data with abstention for insufficient history
+- **Contextual market grouping:** zipcode-based submarket segments, used as a pragmatic real-estate market context
+- **Uncertainty layer:** localized conformal prediction residual quantile intervals by predicted price decile and segment
+- **Decision support:** Pricing Anomaly Detection on sale-price data with sensitivity tables and fallback scoring for low-support rows
 
 ## Reference Results
 
@@ -29,27 +29,7 @@ Reference metrics from the validated run are stored in:
 - `docs/product_persona.md`
 - `docs/monitoring_plan.md`
 
-Expected reference values:
-
-- selected model: `xgboost`
-- validation RMSE: `111003.71`
-- test RMSE: `118687.65`
-- validation MAE: `65533.19`
-- test MAE: `69904.96`
-- validation R2: `0.8960`
-- test R2: `0.9007`
-- segment count: `3`
-- silhouette score: `0.1774`
-- davies-bouldin index: `1.7775`
-- interval method: `conformal_prediction_residual_quantile_localized`
-- interval coverage: `0.9330`
-- average interval width: `372280.01`
-- conformal q-hat: `140076.25`
-- anomaly counts:
-  - within expected range: `17555`
-  - potentially over-valued: `665`
-  - potentially under-valued: `316`
-  - insufficient history: `3061`
+Reference values change when the modeling policy changes. Re-run `python scripts/quickstart.py --install` to regenerate the current metrics under `outputs/tables/` and `outputs/reports/`.
 
 ## Local Setup
 
@@ -185,9 +165,14 @@ Core pipeline outputs:
 - `data/processed/kc_house_features.csv`
 - `data/artifacts/*.joblib`
 - `outputs/tables/valuation_metrics.csv`
+- `outputs/tables/model_baseline_comparison.csv`
 - `outputs/tables/cluster_profiles.csv`
 - `outputs/tables/feature_importance.csv`
 - `outputs/tables/property_intelligence_table.csv`
+- `outputs/tables/anomaly_threshold_sensitivity.csv`
+- `outputs/tables/interval_width_*.csv`
+- `outputs/tables/test_error_by_price_band.csv`
+- `outputs/tables/test_interval_coverage_by_price_band.csv`
 - `outputs/tables/abstention_*.csv`
 - `outputs/tables/slice_metrics_*.csv`
 - `outputs/reports/pipeline_summary.md`
@@ -197,8 +182,9 @@ Core pipeline outputs:
 ## Methodological Safeguards
 
 - No target-derived variables such as `price_per_sqft` are used in the predictive branch.
-- All preprocessing, clustering transforms, and learned mappings are fit on training data or training folds only.
-- Out-of-fold fair values are used for anomaly analysis.
+- The default split is time-based: train through 2014-12-31, validation through 2015-03-31, and test after 2015-03-31 when those periods are present.
+- All preprocessing, segment mappings, and model parameters are fit on training data or training folds only.
+- Out-of-fold fair values are used for calibration and evaluation; fallback scoring keeps the runtime property table reviewable for low-support rows.
 - The anomaly layer is framed for sale-price valuation gaps, not for listing-side decisions.
 - The data download workflow preserves checksum verification and graceful fallback behavior.
 
@@ -208,8 +194,8 @@ Detailed methodology is summarized in `docs/methodology.md`.
 
 - The repository is intentionally scoped to the King County House Sales dataset.
 - The system is tabular and CPU-friendly.
-- KMeans provides contextual market grouping rather than a definitive market-boundary estimate.
-- The uncertainty layer is practical and lightweight rather than fully heteroscedastic.
+- Zipcode segments provide pragmatic market context but are not a substitute for production school-district, parcel, or neighborhood-boundary data.
+- The uncertainty layer is practical and lightweight; interval width is audited by price band and segment to surface heteroscedastic behavior.
 - The decision layer supports sale-price valuation-gap analysis; it should not be treated as a listing-price policy tool.
 
 ## Future Work

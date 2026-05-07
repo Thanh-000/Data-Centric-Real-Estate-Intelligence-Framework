@@ -25,8 +25,11 @@ def test_enhanced_feature_branch_adds_safe_dataset_aligned_features(sample_dataf
         "relative_lot_size",
         "sale_month_sin",
         "sale_month_cos",
+        "prior_zipcode_median_price",
+        "prior_neighbor_median_price",
     }
     assert expected_features.issubset(feature_set.dataframe.columns)
     assert expected_features.issubset(feature_set.predictive_features)
+    assert "yr_renovated" not in feature_set.predictive_features
     assert "price_per_sqft" not in feature_set.predictive_features
     assert_no_target_leakage(feature_set.predictive_features)

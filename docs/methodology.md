@@ -39,31 +39,33 @@ The goal is not to create a perfect real estate dataset. The goal is to make the
 
 ## 5. Feature Policy
 
-Predictive features are derived only from observed property, temporal, renovation, and geospatial-context fields available in the source dataset.
+Predictive features are derived from observed property, temporal, renovation, historical-spatial, and geospatial-context fields available in the source dataset.
 
 The feature layer separates descriptive-only variables from predictive variables. For example, `price_per_sqft` may be useful for human-readable analysis, but it is not allowed in the model branch because it is directly target-derived.
 
+Renovation is represented as `renovated_flag`, `years_since_renovation`, and `renovation_recency`; the raw `yr_renovated = 0` field is not used directly as a predictive feature. Historical spatial features use prior transactions only, such as prior zipcode median price and nearby prior-sale median price, to avoid look-ahead leakage.
+
 ## 6. Split Design
 
-The workflow uses chronological train, validation, and test splits. This prevents future transactions from influencing model selection, preprocessing, or evaluation for earlier transactions.
+The workflow uses time-based train, validation, and test splits. By default, the King County run trains through 2014-12-31, validates through 2015-03-31, and tests on later 2015 transactions when those periods are available. If a small custom dataset cannot support those cutoffs, the splitter falls back to chronological fractions.
 
 All learned preprocessing objects, encoders, scalers, imputers, clustering mappings, and model parameters are fit on training data or training folds only.
 
 ## 7. Market Representation
 
-KMeans is used as contextual market grouping, not as a definitive market-boundary estimate. Segment labels are model features that help represent coarse market context.
+Zipcode-based submarket grouping is used as pragmatic real-estate market context. This replaces the previous KMeans segment layer because low-silhouette KMeans clusters were not meaningful enough to defend as market boundaries.
 
-The clustering workflow is fit on training data, then assigned to validation/test rows through the fitted clustering pipeline. This avoids fitting market structure on the full dataset before model evaluation.
+The segment mapping is fit on training data, then assigned to validation/test rows by zipcode. Rare or unseen zipcodes fall back to an explicit `segment_zipcode_other` label.
 
 ## 8. Valuation Core
 
-The official valuation core is XGBoost. Model selection is validation-driven and CPU-friendly. The framework stores metrics, selected parameters, and fitted artifacts at runtime so users can inspect the run they produced locally.
+The official valuation core is XGBoost. Model selection is validation-driven and CPU-friendly, with log-target candidates included to reduce price-level heteroscedasticity. The framework also writes a baseline comparison against median, linear regression, and random forest models so users can judge whether XGBoost adds value.
 
 The model estimates sale price from leakage-safe features. It should be interpreted as a predictive model over this dataset, not as a causal explanation of real estate prices.
 
 ## 9. Fair-Value and Anomaly Logic
 
-Training-era anomaly analysis uses out-of-fold fair-value estimates. This prevents in-sample fitted predictions from being treated as honest fair-value evidence.
+Calibration uses out-of-fold fair-value estimates. This prevents in-sample fitted predictions from being treated as honest uncertainty evidence.
 
 For holdout rows, the workflow uses forward predictions from the selected model. Pricing anomaly labels compare observed sale prices with model-supported fair-value intervals and mark records as:
 
@@ -72,13 +74,13 @@ For holdout rows, the workflow uses forward predictions from the selected model.
 - potentially under-valued
 - insufficient history
 
-The insufficient-history path is intentional. It avoids forcing a confident conclusion when local support is weak.
+The runtime property table now uses fallback scoring from the selected final model so low-support rows can still be reviewed. Low-support rows are marked through evidence and slice-risk fields instead of being silently dropped from the review surface.
 
 ## 10. Uncertainty Layer
 
-The uncertainty layer uses localized conformal prediction residual quantiles. It provides practical interval estimates around fair-value predictions and reports empirical coverage on the holdout period.
+The uncertainty layer uses localized conformal prediction residual quantiles by predicted price decile and segment. It provides practical interval estimates around fair-value predictions and reports empirical coverage on the holdout period.
 
-The interval method is lightweight and reproducible. It is not a fully heteroscedastic uncertainty model, and difficult slices such as upper-price properties should still receive human review.
+The interval method is lightweight and reproducible. It is not a fully heteroscedastic uncertainty model, so the pipeline writes interval-width distributions by price band and segment, plus q-hat min/median/max audit fields, to make width behavior explicit.
 
 ## 11. Explainability
 
