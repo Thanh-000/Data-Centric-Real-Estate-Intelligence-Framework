@@ -6,6 +6,7 @@ from dc_reif.reporting.artifacts import (
     save_dataframe,
     save_json,
     write_summary_report,
+    write_trust_summary,
 )
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "save_dataframe",
     "save_json",
     "write_summary_report",
+    "write_trust_summary",
 ]

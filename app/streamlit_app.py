@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import sys
 
@@ -16,6 +17,9 @@ from dc_reif.product_analytics import with_product_bands
 
 
 DEFAULT_TABLE = ROOT / "outputs" / "tables" / "property_intelligence_table.csv"
+DEFAULT_TRUST_SUMMARY = ROOT / "outputs" / "reports" / "trust_summary.md"
+DEFAULT_CONFORMAL_SUMMARY = ROOT / "outputs" / "reports" / "local_conformal_calibration_summary.json"
+DEFAULT_COVERAGE_BY_BAND = ROOT / "outputs" / "tables" / "test_interval_coverage_by_price_band.csv"
 
 LABEL_COLORS = {
     "potentially_over_valued": [222, 82, 70, 220],
@@ -111,6 +115,20 @@ MAP_FOCUS = {
 def load_property_table(path: str) -> pd.DataFrame:
     dataframe = pd.read_csv(path)
     return with_product_bands(dataframe)
+
+
+@st.cache_data
+def load_trust_metrics() -> dict[str, object]:
+    payload: dict[str, object] = {}
+    if DEFAULT_CONFORMAL_SUMMARY.exists():
+        payload.update(json.loads(DEFAULT_CONFORMAL_SUMMARY.read_text(encoding="utf-8")))
+    if DEFAULT_COVERAGE_BY_BAND.exists():
+        bands = pd.read_csv(DEFAULT_COVERAGE_BY_BAND)
+        q5 = bands.loc[bands["price_band"].eq("Q5")]
+        if not q5.empty:
+            payload["q5_interval_width"] = float(q5["average_interval_width"].iloc[0])
+            payload["q5_coverage_from_table"] = float(q5["empirical_coverage"].iloc[0])
+    return payload
 
 
 def inject_css() -> None:
@@ -560,7 +578,7 @@ def main() -> None:
     metric_cols[2].metric("Limited evidence", f"{metrics['low_support']:,}")
     metric_cols[3].metric("Within range", f"{metrics['within_range']:,}")
 
-    map_tab, queue_tab, slice_tab = st.tabs(["Map", "Sales list", "Market slices"])
+    map_tab, queue_tab, slice_tab, trust_tab = st.tabs(["Map", "Sales list", "Market slices", "Trust"])
 
     with map_tab:
         control_cols = st.columns([1.4, 1])
@@ -631,6 +649,27 @@ def main() -> None:
                     hide_index=True,
                     column_config=slice_column_config(),
                 )
+
+    with trust_tab:
+        st.subheader("Trust and limitations")
+        st.caption("Use these checks to understand how far the current run can be trusted.")
+        trust = load_trust_metrics()
+        global_coverage = trust.get("global_empirical_coverage")
+        q5_coverage = trust.get("q5_empirical_coverage", trust.get("q5_coverage_from_table"))
+        avg_width = trust.get("global_average_interval_width")
+        q5_width = trust.get("q5_interval_width")
+        trust_cols = st.columns(4)
+        trust_cols[0].metric("Global coverage", f"{global_coverage:.1%}" if isinstance(global_coverage, (int, float)) else "-")
+        trust_cols[1].metric("High-price coverage", f"{q5_coverage:.1%}" if isinstance(q5_coverage, (int, float)) else "-")
+        trust_cols[2].metric("Average interval", format_currency(avg_width) if isinstance(avg_width, (int, float)) else "-")
+        trust_cols[3].metric("High-price interval", format_currency(q5_width) if isinstance(q5_width, (int, float)) else "-")
+        st.markdown(
+            "This dashboard is safe to use as a review queue when coverage checks pass, but it still does not replace appraisal judgment. Wide intervals mean the model is being cautious, especially for expensive properties."
+        )
+        if DEFAULT_TRUST_SUMMARY.exists():
+            st.markdown(DEFAULT_TRUST_SUMMARY.read_text(encoding="utf-8"))
+        else:
+            st.info("Run the pipeline to generate outputs/reports/trust_summary.md.")
 
 
 if __name__ == "__main__":

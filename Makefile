@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: install quickstart download run analyze-abstention evaluate-slices dashboard notebook test clean
+.PHONY: install quickstart download run health analyze-abstention evaluate-slices dashboard notebook test clean
 
 install:
 	$(PYTHON) -m pip install --upgrade pip
@@ -14,6 +14,9 @@ download:
 
 run:
 	$(PYTHON) scripts/run_pipeline.py
+
+health:
+	$(PYTHON) scripts/health_check.py
 
 analyze-abstention:
 	$(PYTHON) scripts/analyze_abstention.py

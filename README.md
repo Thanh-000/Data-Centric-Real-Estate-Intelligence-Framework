@@ -89,6 +89,18 @@ make evaluate-slices
 make test
 ```
 
+Check run health after the pipeline:
+
+```bash
+python scripts/health_check.py
+```
+
+Equivalent `make` command:
+
+```bash
+make health
+```
+
 Open the dashboard after running the pipeline:
 
 ```bash
@@ -170,6 +182,7 @@ Core pipeline outputs:
 - `outputs/tables/feature_importance.csv`
 - `outputs/tables/notebook_local_shap_contributions.csv`
 - `outputs/tables/property_intelligence_table.csv`
+- `outputs/tables/model_flagged_cases.csv`
 - `outputs/tables/anomaly_threshold_sensitivity.csv`
 - `outputs/tables/interval_width_*.csv`
 - `outputs/tables/test_error_by_price_band.csv`
@@ -177,6 +190,7 @@ Core pipeline outputs:
 - `outputs/tables/abstention_*.csv`
 - `outputs/tables/slice_metrics_*.csv`
 - `outputs/reports/pipeline_summary.md`
+- `outputs/reports/trust_summary.md`
 - `outputs/reports/*_summary.json`
 - `outputs/figures/*.png`
 - `outputs/figures/shap_summary.png`
@@ -191,6 +205,36 @@ Core pipeline outputs:
 - The data download workflow preserves checksum verification and graceful fallback behavior.
 
 Detailed methodology is summarized in `docs/methodology.md`.
+
+## Main Review Artifacts
+
+For review or report writing, start with these generated files:
+
+- `outputs/reports/pipeline_summary.md`
+- `outputs/reports/trust_summary.md`
+- `outputs/tables/property_intelligence_table.csv`
+- `outputs/tables/model_flagged_cases.csv`
+- `outputs/tables/valuation_metrics.csv`
+- `outputs/figures/shap_summary.png`
+
+`trust_summary.md` is the compact answer to "how far should we trust this run?" It reports model performance, conformal coverage, high-price coverage, interval width, model-flagged counts, and known limitations.
+
+## What This System Can and Cannot Do
+
+Can:
+
+- reproduce an end-to-end sale-price review workflow
+- flag unusual realized sale prices for human review
+- quantify model uncertainty with conformal intervals
+- explain model behavior with feature importance and SHAP outputs
+- support triage through a Streamlit dashboard
+
+Cannot:
+
+- replace licensed appraisal or local market judgment
+- prove causal drivers of price
+- guarantee current-market validity without retraining on current data
+- make lending, investment, or listing decisions automatically
 
 ## Limitations
 

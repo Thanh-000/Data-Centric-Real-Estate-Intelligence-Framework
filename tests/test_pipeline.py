@@ -33,3 +33,8 @@ def test_pipeline_produces_property_intelligence_outputs(sample_dataframe, temp_
     }
     assert required_columns.issubset(property_table.columns)
     assert len(property_table) > 0
+    assert "trust_summary" in outputs
+    assert "model_flagged_cases" in outputs
+    assert "Trust Summary" in open(outputs["trust_summary"], encoding="utf-8").read()
+    flagged = pd.read_csv(outputs["model_flagged_cases"])
+    assert set(["property_id", "model_signal", "model_confidence", "human_review_note"]).issubset(flagged.columns)

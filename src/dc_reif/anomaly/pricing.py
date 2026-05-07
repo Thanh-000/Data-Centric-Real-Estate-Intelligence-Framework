@@ -86,12 +86,12 @@ def enrich_pricing_anomalies(
         if row.anomaly_flag == "potentially_over_valued":
             breach_value = float(getattr(row, "observed_price") - getattr(row, "upper_bound"))
             why_flagged.append(
-                f"Observed sale price exceeds the upper expected range by {breach_value:,.0f} within the modeled uncertainty band."
+                f"Observed sale price exceeds the upper expected range by {breach_value:,.0f} after accounting for modeled uncertainty."
             )
         elif row.anomaly_flag == "potentially_under_valued":
             breach_value = float(getattr(row, "lower_bound") - getattr(row, "observed_price"))
             why_flagged.append(
-                f"Observed sale price falls below the lower expected range by {breach_value:,.0f} within the modeled uncertainty band."
+                f"Observed sale price falls below the lower expected range by {breach_value:,.0f} after accounting for modeled uncertainty."
             )
         else:
             why_flagged.append("Observed sale price remains inside the expected valuation interval.")

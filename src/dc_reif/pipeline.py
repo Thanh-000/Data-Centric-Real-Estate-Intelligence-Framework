@@ -21,7 +21,14 @@ from dc_reif.governance import clean_king_county_data, load_raw_data, validate_s
 from dc_reif.market_representation import assign_submarket_segments, fit_submarket_clustering
 from dc_reif.product_analytics import interval_width_summary, threshold_sensitivity, write_analysis_tables
 from dc_reif.property_ledger import build_property_ledger
-from dc_reif.reporting import create_eda_figures, create_residual_diagnostics, save_dataframe, save_json, write_summary_report
+from dc_reif.reporting import (
+    create_eda_figures,
+    create_residual_diagnostics,
+    save_dataframe,
+    save_json,
+    write_summary_report,
+    write_trust_summary,
+)
 from dc_reif.uncertainty import build_prediction_intervals, calibrate_local_conformal, evaluate_interval_quality
 from dc_reif.utils import get_logger, write_json
 from dc_reif.valuation_core import chronological_split, evaluate_model_suite, train_and_select_model
@@ -81,6 +88,69 @@ def _price_band(series: pd.Series, n_bands: int = 5) -> pd.Series:
     output = pd.Series(pd.NA, index=series.index, dtype="string")
     output.loc[valid.index] = bands.astype("string")
     return output
+
+
+def _model_confidence(evidence_strength: object, slice_risk_level: object) -> str:
+    evidence = str(evidence_strength)
+    risk = str(slice_risk_level)
+    if evidence == "strong" and risk in {"low", "medium"}:
+        return "Higher"
+    if evidence in {"moderate", "strong"} and risk != "high":
+        return "Medium"
+    return "Lower"
+
+
+def _review_note(row: pd.Series) -> str:
+    label_names = {
+        "potentially_over_valued": "Over-valued",
+        "potentially_under_valued": "Under-valued",
+        "insufficient_history": "Low support",
+        "within_expected_range": "Within range",
+    }
+    signal = label_names.get(str(row.get("anomaly_flag")), str(row.get("anomaly_flag", "Unknown")))
+    confidence = _model_confidence(row.get("evidence_strength"), row.get("slice_risk_level"))
+    if signal == "Low support":
+        return f"Local evidence is limited. Review comparable sales before using this estimate. Confidence: {confidence}."
+    drivers = str(row.get("top_drivers", "")).strip()
+    driver_text = f" Main drivers: {drivers}." if drivers else ""
+    return f"{signal} candidate for human review. {row.get('why_flagged', '')}{driver_text} Confidence: {confidence}."
+
+
+def _model_flagged_cases(property_ledger: pd.DataFrame) -> pd.DataFrame:
+    columns = [
+        "property_id",
+        "sale_date",
+        "zipcode",
+        "observed_price",
+        "fair_value_hat",
+        "lower_bound",
+        "upper_bound",
+        "model_signal",
+        "model_confidence",
+        "human_review_note",
+        "top_drivers",
+    ]
+    flagged = property_ledger.loc[
+        property_ledger["anomaly_flag"].isin(["potentially_over_valued", "potentially_under_valued", "insufficient_history"])
+    ].copy()
+    if flagged.empty:
+        return pd.DataFrame(columns=columns)
+    flagged["model_signal"] = flagged["anomaly_flag"].map(
+        {
+            "potentially_over_valued": "Over-valued",
+            "potentially_under_valued": "Under-valued",
+            "insufficient_history": "Low support",
+        }
+    )
+    flagged["model_confidence"] = flagged.apply(
+        lambda row: _model_confidence(row.get("evidence_strength"), row.get("slice_risk_level")),
+        axis=1,
+    )
+    flagged["human_review_note"] = flagged.apply(_review_note, axis=1)
+    return flagged[[column for column in columns if column in flagged.columns]].sort_values(
+        "observed_price",
+        ascending=False,
+    )
 
 
 def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = True) -> dict[str, str]:
@@ -304,6 +374,11 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
         if (test_coverage_by_price_band["price_band"] == "Q5").any()
         else interval_metrics["empirical_coverage"]
     )
+    q5_interval_width = float(
+        test_coverage_by_price_band.loc[test_coverage_by_price_band["price_band"] == "Q5", "average_interval_width"].iloc[0]
+        if (test_coverage_by_price_band["price_band"] == "Q5").any()
+        else interval_metrics["average_interval_width"]
+    )
     save_json(
         {
             "q_hat": float(calibration_artifacts.global_q_hat),
@@ -360,6 +435,18 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
         "This system performs Pricing Anomaly Detection on realized sale prices and should not be interpreted as a listing-price decision rule.",
     ]
     summary_report = write_summary_report(summary_lines, config.paths.reports_dir / "pipeline_summary.md")
+    trust_summary = write_trust_summary(
+        valuation_metrics=valuation.valuation_metrics,
+        interval_metrics=interval_metrics,
+        q5_coverage=q5_coverage,
+        q5_interval_width=q5_interval_width,
+        property_ledger=property_ledger,
+        output_path=config.paths.reports_dir / "trust_summary.md",
+    )
+    model_flagged_cases = save_dataframe(
+        _model_flagged_cases(property_ledger),
+        config.paths.tables_dir / "model_flagged_cases.csv",
+    )
 
     outputs = {
         "dataset_path": str(dataset_path),
@@ -377,8 +464,10 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
         "model_baseline_comparison": str(config.paths.tables_dir / "model_baseline_comparison.csv"),
         "anomaly_threshold_sensitivity": str(config.paths.tables_dir / "anomaly_threshold_sensitivity.csv"),
         "property_intelligence": str(config.paths.tables_dir / "property_intelligence_table.csv"),
+        "model_flagged_cases": str(model_flagged_cases),
         "feature_importance_plot": str(importance_plot),
         "summary_report": str(summary_report),
+        "trust_summary": str(trust_summary),
     }
     if shap_path:
         outputs["shap_summary"] = str(shap_path)

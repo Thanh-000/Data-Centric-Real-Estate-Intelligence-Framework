@@ -122,3 +122,56 @@ def write_summary_report(summary_lines: list[str], path: Path) -> Path:
     ensure_directory(path.parent)
     path.write_text("\n".join(summary_lines), encoding="utf-8")
     return path
+
+
+def write_trust_summary(
+    *,
+    valuation_metrics: pd.DataFrame,
+    interval_metrics: dict[str, float],
+    q5_coverage: float,
+    q5_interval_width: float,
+    property_ledger: pd.DataFrame,
+    output_path: Path,
+) -> Path:
+    row = valuation_metrics.iloc[0].to_dict() if not valuation_metrics.empty else {}
+    counts = property_ledger["anomaly_flag"].value_counts().to_dict()
+    model_flagged = int(
+        property_ledger["anomaly_flag"].isin(["potentially_over_valued", "potentially_under_valued"]).sum()
+    )
+    lines = [
+        "# Trust Summary",
+        "",
+        "## Intended Use",
+        "",
+        "This system is a model-assisted triage tool for realized sale-price review. It flags candidates for human review; it is not an automated appraisal engine or a final pricing authority.",
+        "",
+        "## Model Performance",
+        "",
+        f"- Test R2: {float(row.get('test_r2', float('nan'))):.3f}",
+        f"- Test MAPE: {float(row.get('test_mape', float('nan'))):.2f}%",
+        f"- Test RMSE: ${float(row.get('test_rmse', float('nan'))):,.0f}",
+        f"- Test MAE: ${float(row.get('test_mae', float('nan'))):,.0f}",
+        "",
+        "## Uncertainty",
+        "",
+        f"- Global empirical coverage: {interval_metrics.get('empirical_coverage', float('nan')):.1%}",
+        f"- High-price Q5 empirical coverage: {q5_coverage:.1%}",
+        f"- Average interval width: ${interval_metrics.get('average_interval_width', float('nan')):,.0f}",
+        f"- High-price Q5 average interval width: ${q5_interval_width:,.0f}",
+        "",
+        "## Decision Layer",
+        "",
+        f"- Model-flagged cases: {model_flagged:,}",
+        f"- Potentially over-valued: {int(counts.get('potentially_over_valued', 0)):,}",
+        f"- Potentially under-valued: {int(counts.get('potentially_under_valued', 0)):,}",
+        f"- Limited-evidence cases: {int(counts.get('insufficient_history', 0)):,}",
+        f"- Within model range: {int(counts.get('within_expected_range', 0)):,}",
+        "",
+        "## Known Limitations",
+        "",
+        "- The data is the static King County 2014-2015 transaction dataset.",
+        "- High-price properties require wider intervals, so flags are less sharp in that segment.",
+        "- Feature importance and SHAP describe model behavior, not causal proof.",
+        "- All model-flagged cases should be reviewed with local market context before business use.",
+    ]
+    return write_summary_report(lines, output_path)
