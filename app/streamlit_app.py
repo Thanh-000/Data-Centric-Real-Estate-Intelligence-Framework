@@ -42,9 +42,15 @@ FILTER_LABELS = {
 }
 
 FOCUS_LABELS = {
-    "Anomalies only": "Review flags",
-    "Anomalies + low support": "Review flags + low support",
-    "All transactions": "All sales",
+    "Anomalies only": "Needs review only",
+    "Anomalies + low support": "Needs review + limited evidence",
+    "All transactions": "All sales for context",
+}
+
+FOCUS_HELP = {
+    "Anomalies only": "Shows sales where the observed price is outside the expected fair-value range.",
+    "Anomalies + low support": "Adds sales where the model has limited local evidence, if any exist.",
+    "All transactions": "Shows normal sales too, useful for geographic context but visually denser.",
 }
 
 QUEUE_COLUMN_NAMES = {
@@ -170,6 +176,13 @@ def inject_css() -> None:
             padding: 0.75rem 0.9rem;
             margin: 0.8rem 0 1rem 0;
             font-size: 0.96rem;
+        }
+        .map-help {
+            color: inherit;
+            opacity: 0.74;
+            font-size: 0.92rem;
+            margin-top: -0.2rem;
+            margin-bottom: 0.5rem;
         }
         </style>
         """,
@@ -510,13 +523,14 @@ def main() -> None:
     with map_tab:
         control_cols = st.columns([1.4, 1])
         map_focus = control_cols[0].radio(
-            "Map shows",
+            "Map display",
             list(MAP_FOCUS),
             index=1,
             format_func=lambda value: FOCUS_LABELS[value],
             horizontal=True,
         )
         max_points = control_cols[1].slider("Maximum mapped sales", min_value=500, max_value=12000, value=5000, step=500)
+        st.markdown(f"<div class='map-help'>{FOCUS_HELP[map_focus]}</div>", unsafe_allow_html=True)
         focus_labels = map_labels_for_focus(map_focus, selected_review_labels)
         active_names = ", ".join(display_value("anomaly_flag", label) for label in focus_labels)
         focus_source = f"{FOCUS_LABELS[map_focus].lower()} ({active_names})" if active_names else FOCUS_LABELS[map_focus].lower()
