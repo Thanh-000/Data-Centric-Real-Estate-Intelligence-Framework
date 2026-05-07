@@ -31,9 +31,11 @@ LABEL_NAMES = {
     "within_expected_range": "Within range",
 }
 
+ACTIONABLE_LABELS = ["potentially_over_valued", "potentially_under_valued"]
+
 MAP_FOCUS = {
-    "Anomalies only": ["potentially_over_valued", "potentially_under_valued"],
-    "Anomalies + low support": ["potentially_over_valued", "potentially_under_valued", "insufficient_history"],
+    "Anomalies only": ACTIONABLE_LABELS,
+    "Anomalies + low support": [*ACTIONABLE_LABELS, "insufficient_history"],
     "All transactions": [
         "potentially_over_valued",
         "potentially_under_valued",
@@ -158,6 +160,94 @@ def map_labels_for_focus(map_focus: str, selected_review_labels: list[str]) -> l
         return focus_labels
     selected = set(selected_review_labels)
     return [label for label in focus_labels if label in selected]
+
+
+def map_excluded_labels(map_focus: str, selected_review_labels: list[str]) -> list[str]:
+    if not selected_review_labels:
+        return []
+    focus = set(MAP_FOCUS[map_focus])
+    return [label for label in selected_review_labels if label not in focus]
+
+
+def summarize_metrics(dataframe: pd.DataFrame, full_count: int) -> dict[str, float | int]:
+    total = int(len(dataframe))
+    if not total:
+        return {
+            "transactions": 0,
+            "anomalies": 0,
+            "low_support": 0,
+            "within_range": 0,
+            "coverage": 0.0,
+        }
+    return {
+        "transactions": total,
+        "anomalies": int(dataframe["anomaly_flag"].isin(ACTIONABLE_LABELS).sum()),
+        "low_support": int(dataframe["anomaly_flag"].eq("insufficient_history").sum()),
+        "within_range": int(dataframe["anomaly_flag"].eq("within_expected_range").sum()),
+        "coverage": float(total / full_count) if full_count else 0.0,
+    }
+
+
+def build_review_queue(dataframe: pd.DataFrame) -> pd.DataFrame:
+    queue_columns = [
+        "property_id",
+        "sale_date",
+        "zipcode",
+        "observed_price",
+        "fair_value_hat",
+        "lower_bound",
+        "upper_bound",
+        "anomaly_flag",
+        "anomaly_score",
+        "evidence_strength",
+        "slice_risk_level",
+        "top_drivers",
+        "why_flagged",
+    ]
+    available = [column for column in queue_columns if column in dataframe.columns]
+    display = dataframe[available].copy()
+    if "anomaly_flag" in display.columns:
+        display["review_label"] = display["anomaly_flag"].map(LABEL_NAMES).fillna(display["anomaly_flag"])
+        ordered = [
+            "property_id",
+            "sale_date",
+            "zipcode",
+            "observed_price",
+            "fair_value_hat",
+            "lower_bound",
+            "upper_bound",
+            "review_label",
+            "anomaly_score",
+            "evidence_strength",
+            "slice_risk_level",
+            "top_drivers",
+            "why_flagged",
+        ]
+        display = display[[column for column in ordered if column in display.columns]]
+    if "anomaly_score" in display.columns:
+        display = display.sort_values(
+            "anomaly_score",
+            key=lambda series: series.abs(),
+            ascending=False,
+            na_position="last",
+        )
+    return display
+
+
+def build_slice_summary(dataframe: pd.DataFrame, column: str) -> pd.DataFrame:
+    summary = dataframe.groupby(column, dropna=False).agg(
+        transactions=("property_id", "size"),
+        anomalies=("anomaly_flag", lambda values: int(values.isin(ACTIONABLE_LABELS).sum())),
+        low_support=("anomaly_flag", lambda values: int((values == "insufficient_history").sum())),
+        median_price=("observed_price", "median"),
+    )
+    summary["anomaly_rate"] = summary["anomalies"] / summary["transactions"]
+    summary["low_support_rate"] = summary["low_support"] / summary["transactions"]
+    summary = summary.reset_index()
+    summary[column] = summary[column].astype(str).map(lambda value: display_value(column, value))
+    for rate_column in ["anomaly_rate", "low_support_rate"]:
+        summary[rate_column] = summary[rate_column].map(lambda value: f"{value:.1%}")
+    return summary.sort_values("transactions", ascending=False)
 
 
 def format_currency(value: float | int | None) -> str:
@@ -296,20 +386,16 @@ def main() -> None:
     context_filters = {column: values for column, values in selected_filters.items() if column != "anomaly_flag"}
     slice_context = apply_selected_filters(dataframe, context_filters)
 
-    total = len(filtered)
-    anomalies = int(filtered["anomaly_flag"].isin(["potentially_over_valued", "potentially_under_valued"]).sum()) if total else 0
-    low_support = int(filtered["anomaly_flag"].eq("insufficient_history").sum()) if total else 0
-    within_range = int(filtered["anomaly_flag"].eq("within_expected_range").sum()) if total else 0
-    coverage = total / len(dataframe) if len(dataframe) else 0
+    metrics = summarize_metrics(filtered, full_count=len(dataframe))
 
     st.title("Pricing Anomaly Review")
     st.caption("Review realized sale transactions by anomaly label, local evidence, and model-supported fair-value interval.")
 
     metric_cols = st.columns(4)
-    metric_cols[0].metric("Transactions", f"{total:,}", f"{coverage:.1%} of dataset")
-    metric_cols[1].metric("Potential anomalies", f"{anomalies:,}")
-    metric_cols[2].metric("Low-support cases", f"{low_support:,}")
-    metric_cols[3].metric("Within range", f"{within_range:,}")
+    metric_cols[0].metric("Transactions", f"{metrics['transactions']:,}", f"{metrics['coverage']:.1%} of dataset")
+    metric_cols[1].metric("Potential anomalies", f"{metrics['anomalies']:,}")
+    metric_cols[2].metric("Low-support cases", f"{metrics['low_support']:,}")
+    metric_cols[3].metric("Within range", f"{metrics['within_range']:,}")
 
     map_tab, queue_tab, slice_tab = st.tabs(["Map", "Review queue", "Slice summary"])
 
@@ -318,7 +404,7 @@ def main() -> None:
         active_names = ", ".join(display_value("anomaly_flag", label) for label in focus_labels)
         focus_source = f"{map_focus.lower()} ({active_names})" if active_names else map_focus.lower()
         if selected_review_labels:
-            excluded_labels = [label for label in selected_review_labels if label not in MAP_FOCUS[map_focus]]
+            excluded_labels = map_excluded_labels(map_focus, selected_review_labels)
             if excluded_labels:
                 excluded_names = ", ".join(display_value("anomaly_flag", label) for label in excluded_labels)
                 st.caption(f"Map focus excludes {excluded_names}. Use All transactions to include them on the map.")
@@ -328,48 +414,7 @@ def main() -> None:
             render_map(filtered, focus_labels=focus_labels, max_points=max_points, focus_source=focus_source)
 
     with queue_tab:
-        queue_columns = [
-            "property_id",
-            "sale_date",
-            "zipcode",
-            "observed_price",
-            "fair_value_hat",
-            "lower_bound",
-            "upper_bound",
-            "anomaly_flag",
-            "anomaly_score",
-            "evidence_strength",
-            "slice_risk_level",
-            "top_drivers",
-            "why_flagged",
-        ]
-        available = [column for column in queue_columns if column in filtered.columns]
-        display = filtered[available].copy()
-        if "anomaly_flag" in display.columns:
-            display["review_label"] = display["anomaly_flag"].map(LABEL_NAMES).fillna(display["anomaly_flag"])
-            ordered = [
-                "property_id",
-                "sale_date",
-                "zipcode",
-                "observed_price",
-                "fair_value_hat",
-                "lower_bound",
-                "upper_bound",
-                "review_label",
-                "anomaly_score",
-                "evidence_strength",
-                "slice_risk_level",
-                "top_drivers",
-                "why_flagged",
-            ]
-            display = display[[column for column in ordered if column in display.columns]]
-        if "anomaly_score" in display.columns:
-            display = display.sort_values(
-                "anomaly_score",
-                key=lambda series: series.abs(),
-                ascending=False,
-                na_position="last",
-            )
+        display = build_review_queue(filtered)
         st.dataframe(display, use_container_width=True, height=560, hide_index=True)
         st.download_button(
             "Download review queue",
@@ -395,19 +440,7 @@ def main() -> None:
         for column in ["zipcode", "segment_label", "observed_price_band", "evidence_strength", "slice_risk_level"]:
             if column in slice_frame.columns:
                 st.subheader(column.replace("_", " ").title())
-                summary = slice_frame.groupby(column, dropna=False).agg(
-                    transactions=("property_id", "size"),
-                    anomalies=("anomaly_flag", lambda values: int(values.isin(["potentially_over_valued", "potentially_under_valued"]).sum())),
-                    low_support=("anomaly_flag", lambda values: int((values == "insufficient_history").sum())),
-                    median_price=("observed_price", "median"),
-                )
-                summary["anomaly_rate"] = summary["anomalies"] / summary["transactions"]
-                summary["low_support_rate"] = summary["low_support"] / summary["transactions"]
-                summary = summary.reset_index()
-                summary[column] = summary[column].astype(str).map(lambda value: display_value(column, value))
-                for rate_column in ["anomaly_rate", "low_support_rate"]:
-                    summary[rate_column] = summary[rate_column].map(lambda value: f"{value:.1%}")
-                st.dataframe(summary.sort_values("transactions", ascending=False), use_container_width=True)
+                st.dataframe(build_slice_summary(slice_frame, column), use_container_width=True)
 
 
 if __name__ == "__main__":
