@@ -3,6 +3,7 @@
 from dc_reif.explainability.feature_attribution import (
     build_top_driver_map,
     global_feature_importance,
+    local_shap_contributions,
     plot_feature_importance,
     shap_explanations,
 )
@@ -10,6 +11,7 @@ from dc_reif.explainability.feature_attribution import (
 __all__ = [
     "build_top_driver_map",
     "global_feature_importance",
+    "local_shap_contributions",
     "plot_feature_importance",
     "shap_explanations",
 ]

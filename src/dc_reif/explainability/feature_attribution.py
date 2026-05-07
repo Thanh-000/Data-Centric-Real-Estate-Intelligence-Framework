@@ -103,6 +103,64 @@ def shap_explanations(
     return output_path, local_map
 
 
+def local_shap_contributions(
+    model_pipeline,
+    dataset: pd.DataFrame,
+    feature_columns: list[str],
+    property_ids: list[str],
+    id_column: str = "id",
+    top_n: int = 5,
+) -> pd.DataFrame:
+    try:
+        import shap
+    except Exception as exc:  # pragma: no cover
+        LOGGER.warning("SHAP local contributions unavailable: %s", exc)
+        return pd.DataFrame(columns=["property_id", "rank", "feature", "shap_value", "abs_shap_value", "direction"])
+
+    if not property_ids or not hasattr(model_pipeline.named_steps["model"], "feature_importances_"):
+        return pd.DataFrame(columns=["property_id", "rank", "feature", "shap_value", "abs_shap_value", "direction"])
+
+    lookup = dataset[dataset[id_column].astype(str).isin([str(property_id) for property_id in property_ids])].copy()
+    if lookup.empty:
+        return pd.DataFrame(columns=["property_id", "rank", "feature", "shap_value", "abs_shap_value", "direction"])
+
+    preprocessor = model_pipeline.named_steps["preprocessor"]
+    transformed = preprocessor.transform(lookup[feature_columns])
+    if hasattr(transformed, "toarray"):
+        transformed = transformed.toarray()
+
+    names = _feature_names(model_pipeline)
+    explainer = shap.TreeExplainer(model_pipeline.named_steps["model"])
+    shap_values = explainer.shap_values(transformed)
+
+    rows: list[dict[str, object]] = []
+    for row_index, property_id in enumerate(lookup[id_column].astype(str)):
+        contributions = (
+            pd.DataFrame(
+                {
+                    "feature": names,
+                    "shap_value": shap_values[row_index],
+                    "abs_shap_value": np.abs(shap_values[row_index]),
+                }
+            )
+            .sort_values("abs_shap_value", ascending=False)
+            .head(top_n)
+            .reset_index(drop=True)
+        )
+        for rank, row in enumerate(contributions.itertuples(index=False), start=1):
+            rows.append(
+                {
+                    "property_id": property_id,
+                    "rank": rank,
+                    "feature": row.feature,
+                    "shap_value": float(row.shap_value),
+                    "abs_shap_value": float(row.abs_shap_value),
+                    "direction": "pushes_prediction_up" if row.shap_value >= 0 else "pushes_prediction_down",
+                }
+            )
+    return pd.DataFrame(rows)
+
+
 def build_top_driver_map(
     dataframe: pd.DataFrame,
     id_column: str,

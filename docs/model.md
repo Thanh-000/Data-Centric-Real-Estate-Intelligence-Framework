@@ -48,6 +48,7 @@ the fitted artifacts are generated under:
 - `outputs/reports/xgboost_selection_summary.json`
 - `outputs/figures/feature_importance.png`
 - `outputs/figures/shap_summary.png`
+- `outputs/tables/notebook_local_shap_contributions.csv` when the notebook explainability section is run
 These files are intentionally ignored by Git. They can be regenerated from source, configuration, and the downloaded dataset.
 
 ## Why Model Artifacts Are Not Committed

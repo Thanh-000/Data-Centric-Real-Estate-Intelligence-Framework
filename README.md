@@ -168,6 +168,7 @@ Core pipeline outputs:
 - `outputs/tables/xgboost_selection_grid.csv`
 - `outputs/tables/cluster_profiles.csv`
 - `outputs/tables/feature_importance.csv`
+- `outputs/tables/notebook_local_shap_contributions.csv`
 - `outputs/tables/property_intelligence_table.csv`
 - `outputs/tables/anomaly_threshold_sensitivity.csv`
 - `outputs/tables/interval_width_*.csv`
