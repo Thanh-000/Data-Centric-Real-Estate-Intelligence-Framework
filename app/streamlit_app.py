@@ -245,6 +245,16 @@ def summarize_metrics(dataframe: pd.DataFrame, full_count: int) -> dict[str, flo
     }
 
 
+def map_metrics(dataframe: pd.DataFrame, focus_labels: list[str], max_points: int) -> dict[str, int]:
+    frame = prepare_map_frame(dataframe, focus_labels=focus_labels, max_points=max_points)
+    return {
+        "mapped_sales": int(len(frame)),
+        "review_flags": int(frame["anomaly_flag"].isin(ACTIONABLE_LABELS).sum()) if not frame.empty else 0,
+        "low_support": int(frame["anomaly_flag"].eq("insufficient_history").sum()) if not frame.empty else 0,
+        "within_range": int(frame["anomaly_flag"].eq("within_expected_range").sum()) if not frame.empty else 0,
+    }
+
+
 def status_line(metrics: dict[str, float | int]) -> str:
     def sale_word(count: float | int) -> str:
         return "sale" if int(count) == 1 else "sales"
@@ -387,6 +397,8 @@ def prepare_map_frame(dataframe: pd.DataFrame, focus_labels: list[str], max_poin
     map_frame.loc[map_frame["anomaly_flag"].eq("within_expected_range"), "radius_px"] = 2.4
     map_frame["observed_price_display"] = map_frame["observed_price"].map(format_currency)
     map_frame["fair_value_display"] = map_frame["fair_value_hat"].map(format_currency)
+    map_frame["lower_bound_display"] = map_frame["lower_bound"].map(format_currency) if "lower_bound" in map_frame.columns else "-"
+    map_frame["upper_bound_display"] = map_frame["upper_bound"].map(format_currency) if "upper_bound" in map_frame.columns else "-"
     map_frame["score_display"] = map_frame["anomaly_score"].map(format_score) if "anomaly_score" in map_frame.columns else "-"
     return map_frame
 
@@ -398,12 +410,12 @@ def render_map(dataframe: pd.DataFrame, focus_labels: list[str], max_points: int
 
     map_frame = prepare_map_frame(dataframe, focus_labels=focus_labels, max_points=max_points)
     if map_frame.empty:
-        st.info(f"No map rows match the current filters for {focus_source}.")
+        st.info(f"No mapped sales match the current filters for {focus_source}.")
         return
 
     st.markdown(legend_html(focus_labels), unsafe_allow_html=True)
     st.markdown(
-        f"<div class='hint'>Showing {len(map_frame):,} points from {focus_source}. Point size follows absolute anomaly score; colors follow review label.</div>",
+        f"<div class='hint'>Showing {len(map_frame):,} mapped sales from {focus_source}.</div>",
         unsafe_allow_html=True,
     )
 
@@ -427,9 +439,10 @@ def render_map(dataframe: pd.DataFrame, focus_labels: list[str], max_points: int
         "html": (
             "<b>{label}</b><br/>"
             "Property: {property_id}<br/>"
-            "Observed: {observed_price_display}<br/>"
-            "Fair value: {fair_value_display}<br/>"
-            "Score: {score_display}<br/>"
+            "Observed sale: {observed_price_display}<br/>"
+            "Fair value estimate: {fair_value_display}<br/>"
+            "Expected range: {lower_bound_display} to {upper_bound_display}<br/>"
+            "Review score: {score_display}<br/>"
             "Zipcode: {zipcode}"
         )
     }
@@ -461,10 +474,6 @@ def main() -> None:
 
     dataframe = load_property_table(str(path))
 
-    map_focus = st.sidebar.radio("Map view", list(MAP_FOCUS), index=1, format_func=lambda value: FOCUS_LABELS[value])
-    max_points = st.sidebar.slider("Max map points", min_value=500, max_value=12000, value=5000, step=500)
-    st.sidebar.divider()
-
     selected_filters: dict[str, list[str]] = {}
     filtered = dataframe.copy()
     filtered, selected_review_labels = sidebar_filter(filtered, "anomaly_flag", FILTER_LABELS["anomaly_flag"])
@@ -492,6 +501,15 @@ def main() -> None:
     map_tab, queue_tab, slice_tab = st.tabs(["Map", "Sales list", "Market slices"])
 
     with map_tab:
+        control_cols = st.columns([1.4, 1])
+        map_focus = control_cols[0].radio(
+            "Map shows",
+            list(MAP_FOCUS),
+            index=1,
+            format_func=lambda value: FOCUS_LABELS[value],
+            horizontal=True,
+        )
+        max_points = control_cols[1].slider("Maximum mapped sales", min_value=500, max_value=12000, value=5000, step=500)
         focus_labels = map_labels_for_focus(map_focus, selected_review_labels)
         active_names = ", ".join(display_value("anomaly_flag", label) for label in focus_labels)
         focus_source = f"{FOCUS_LABELS[map_focus].lower()} ({active_names})" if active_names else FOCUS_LABELS[map_focus].lower()
@@ -503,6 +521,12 @@ def main() -> None:
         if not focus_labels:
             st.info("The selected review outcome is outside the current map view. Switch to All sales or adjust Review outcome.")
         else:
+            mapped = map_metrics(filtered, focus_labels=focus_labels, max_points=max_points)
+            map_metric_cols = st.columns(4)
+            map_metric_cols[0].metric("Mapped sales", f"{mapped['mapped_sales']:,}")
+            map_metric_cols[1].metric("Review flags", f"{mapped['review_flags']:,}")
+            map_metric_cols[2].metric("Limited evidence", f"{mapped['low_support']:,}")
+            map_metric_cols[3].metric("Within range", f"{mapped['within_range']:,}")
             render_map(filtered, focus_labels=focus_labels, max_points=max_points, focus_source=focus_source)
 
     with queue_tab:

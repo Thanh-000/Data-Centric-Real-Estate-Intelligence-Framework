@@ -5,6 +5,7 @@ from app.streamlit_app import (
     build_slice_summary,
     map_excluded_labels,
     map_labels_for_focus,
+    map_metrics,
     prepare_map_frame,
     summarize_metrics,
     status_line,
@@ -66,6 +67,19 @@ def test_prepare_map_frame_renders_within_range_as_background_points():
     assert len(map_frame) == 1
     assert map_frame["radius_px"].iloc[0] == 2.4
     assert map_frame["label"].iloc[0] == "Within range"
+
+
+def test_map_metrics_counts_what_is_actually_mapped():
+    frame = _dashboard_frame()
+
+    metrics = map_metrics(frame, ["potentially_over_valued", "potentially_under_valued"], max_points=10)
+
+    assert metrics == {
+        "mapped_sales": 2,
+        "review_flags": 2,
+        "low_support": 0,
+        "within_range": 0,
+    }
 
 
 def test_summarize_metrics_counts_actionable_low_support_and_within_range():
