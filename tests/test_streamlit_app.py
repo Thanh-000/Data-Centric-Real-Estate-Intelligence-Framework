@@ -101,15 +101,18 @@ def test_summarize_metrics_counts_actionable_low_support_and_within_range():
     assert metrics["low_support"] == 1
     assert metrics["within_range"] == 1
     assert metrics["coverage"] == 0.5
-    assert status_line(metrics) == "2 sales need pricing review and 1 sale has limited local evidence in the current view."
+    assert (
+        status_line(metrics)
+        == "2 sales need human review because the model flagged pricing risk and 1 sale has limited local evidence in the current view."
+    )
 
 
 def test_build_review_queue_uses_friendly_label_and_sorts_by_absolute_score():
     queue = build_review_queue(_dashboard_frame())
 
-    assert "Review outcome" in queue.columns
+    assert "Model signal" in queue.columns
     assert queue["Property ID"].tolist()[:2] == ["3", "2"]
-    assert queue.loc[queue["Property ID"].eq("2"), "Review outcome"].iloc[0] == "Over-valued"
+    assert queue.loc[queue["Property ID"].eq("2"), "Model signal"].iloc[0] == "Over-valued"
 
 
 def test_build_slice_summary_keeps_rates_visible_across_labels():
@@ -118,7 +121,7 @@ def test_build_slice_summary_keeps_rates_visible_across_labels():
     q5 = summary.loc[summary["Price band"].eq("Q5")].iloc[0]
 
     assert q1["Sales"] == 2
-    assert q1["Review flags"] == 1
+    assert q1["Model flags"] == 1
     assert q1["Review flag rate"] == "50.0%"
     assert q5["Sales"] == 2
     assert q5["Low support"] == 1

@@ -34,7 +34,7 @@ LABEL_NAMES = {
 ACTIONABLE_LABELS = ["potentially_over_valued", "potentially_under_valued"]
 
 FILTER_LABELS = {
-    "anomaly_flag": "Review outcome",
+    "anomaly_flag": "Model signal",
     "zipcode": "Zipcode",
     "observed_price_band": "Price band",
     "evidence_strength": "Evidence strength",
@@ -42,14 +42,14 @@ FILTER_LABELS = {
 }
 
 FOCUS_LABELS = {
-    "Anomalies only": "Needs review only",
-    "Anomalies + low support": "Needs review + limited evidence",
+    "Anomalies only": "Model-flagged cases",
+    "Anomalies + low support": "Model-flagged + limited evidence",
     "All transactions": "All sales for context",
 }
 
 FOCUS_HELP = {
-    "Anomalies only": "Shows sales where the observed price is outside the expected fair-value range.",
-    "Anomalies + low support": "Adds sales where the model has limited local evidence, if any exist.",
+    "Anomalies only": "Shows model-flagged candidates for human review. This is not a final valuation judgment.",
+    "Anomalies + low support": "Adds cases where local evidence is limited, if any exist.",
     "All transactions": "Shows normal sales too, useful for geographic context but visually denser.",
 }
 
@@ -61,7 +61,7 @@ QUEUE_COLUMN_NAMES = {
     "fair_value_hat": "Fair value estimate",
     "lower_bound": "Lower fair range",
     "upper_bound": "Upper fair range",
-    "review_label": "Review outcome",
+    "review_label": "Model signal",
     "anomaly_score": "Review score",
     "evidence_strength": "Evidence strength",
     "slice_risk_level": "Slice risk",
@@ -75,7 +75,7 @@ SLICE_COLUMN_NAMES = {
     "evidence_strength": "Evidence strength",
     "slice_risk_level": "Slice risk",
     "transactions": "Sales",
-    "anomalies": "Review flags",
+    "anomalies": "Model flags",
     "low_support": "Low support",
     "median_price": "Median price",
     "anomaly_rate": "Review flag rate",
@@ -184,6 +184,15 @@ def inject_css() -> None:
             margin-top: -0.2rem;
             margin-bottom: 0.5rem;
         }
+        .model-caveat {
+            border-left: 4px solid #f0b429;
+            background: rgba(240, 180, 41, 0.10);
+            border-radius: 6px;
+            padding: 0.7rem 0.9rem;
+            margin: 0.5rem 0 1rem 0;
+            font-size: 0.93rem;
+            color: inherit;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -285,11 +294,11 @@ def status_line(metrics: dict[str, float | int]) -> str:
     if metrics["transactions"] == 0:
         return "No sales match the current filters."
     if metrics["anomalies"] == 0 and metrics["low_support"] == 0:
-        return "Current filters show sales inside the expected fair-value range."
+        return "Current filters show sales inside the model's expected fair-value range."
     parts = []
     if metrics["anomalies"]:
         verb = "needs" if int(metrics["anomalies"]) == 1 else "need"
-        parts.append(f"{metrics['anomalies']:,} {sale_word(metrics['anomalies'])} {verb} pricing review")
+        parts.append(f"{metrics['anomalies']:,} {sale_word(metrics['anomalies'])} {verb} human review because the model flagged pricing risk")
     if metrics["low_support"]:
         verb = "has" if int(metrics["low_support"]) == 1 else "have"
         parts.append(f"{metrics['low_support']:,} {sale_word(metrics['low_support'])} {verb} limited local evidence")
@@ -509,12 +518,16 @@ def main() -> None:
     metrics = summarize_metrics(filtered, full_count=len(dataframe))
 
     st.title("Real Estate Pricing Review")
-    st.caption("Sales are grouped by whether the observed price falls inside or outside the model-supported fair-value range.")
+    st.caption("Sales are grouped by whether the observed price falls inside or outside the model-estimated fair-value range.")
+    st.markdown(
+        "<div class='model-caveat'>This dashboard is a triage aid. A model flag means a sale should be reviewed with local market context; it is not proof that the price is wrong.</div>",
+        unsafe_allow_html=True,
+    )
     st.markdown(f"<div class='status-line'>{status_line(metrics)}</div>", unsafe_allow_html=True)
 
     metric_cols = st.columns(4)
     metric_cols[0].metric("Sales in view", f"{metrics['transactions']:,}", f"{metrics['coverage']:.1%} of dataset")
-    metric_cols[1].metric("Need review", f"{metrics['anomalies']:,}")
+    metric_cols[1].metric("Model-flagged", f"{metrics['anomalies']:,}")
     metric_cols[2].metric("Limited evidence", f"{metrics['low_support']:,}")
     metric_cols[3].metric("Within range", f"{metrics['within_range']:,}")
 
@@ -540,12 +553,12 @@ def main() -> None:
                 excluded_names = ", ".join(display_value("anomaly_flag", label) for label in excluded_labels)
                 st.caption(f"Map view excludes {excluded_names}. Use All sales to include them on the map.")
         if not focus_labels:
-            st.info("The selected review outcome is outside the current map view. Switch to All sales or adjust Review outcome.")
+            st.info("The selected model signal is outside the current map view. Switch to All sales or adjust Model signal.")
         else:
             mapped = map_metrics(filtered, focus_labels=focus_labels, max_points=max_points)
             map_metric_cols = st.columns(4)
             map_metric_cols[0].metric("Mapped sales", f"{mapped['mapped_sales']:,}")
-            map_metric_cols[1].metric("Review flags", f"{mapped['review_flags']:,}")
+            map_metric_cols[1].metric("Model-flagged", f"{mapped['review_flags']:,}")
             map_metric_cols[2].metric("Limited evidence", f"{mapped['low_support']:,}")
             map_metric_cols[3].metric("Within range", f"{mapped['within_range']:,}")
             render_map(filtered, focus_labels=focus_labels, max_points=max_points, focus_source=focus_source)
