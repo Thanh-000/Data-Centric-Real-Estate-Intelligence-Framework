@@ -144,6 +144,14 @@ def sidebar_filter(dataframe: pd.DataFrame, column: str, label: str) -> tuple[pd
     return dataframe.loc[dataframe[column].astype(str).isin(selected)], selected
 
 
+def apply_selected_filters(dataframe: pd.DataFrame, selections: dict[str, list[str]]) -> pd.DataFrame:
+    filtered = dataframe.copy()
+    for column, selected in selections.items():
+        if selected and column in filtered.columns:
+            filtered = filtered.loc[filtered[column].astype(str).isin(selected)]
+    return filtered
+
+
 def format_currency(value: float | int | None) -> str:
     if pd.isna(value):
         return "-"
@@ -272,13 +280,17 @@ def main() -> None:
     max_points = st.sidebar.slider("Max map points", min_value=500, max_value=12000, value=5000, step=500)
     st.sidebar.divider()
 
+    selected_filters: dict[str, list[str]] = {}
     filtered = dataframe.copy()
     filtered, selected_review_labels = sidebar_filter(filtered, "anomaly_flag", "Review label")
-    filtered, _ = sidebar_filter(filtered, "zipcode", "Zipcode")
-    filtered, _ = sidebar_filter(filtered, "segment_label", "Segment")
-    filtered, _ = sidebar_filter(filtered, "observed_price_band", "Observed price band")
-    filtered, _ = sidebar_filter(filtered, "evidence_strength", "Evidence strength")
-    filtered, _ = sidebar_filter(filtered, "slice_risk_level", "Slice risk")
+    selected_filters["anomaly_flag"] = selected_review_labels
+    filtered, selected_filters["zipcode"] = sidebar_filter(filtered, "zipcode", "Zipcode")
+    filtered, selected_filters["segment_label"] = sidebar_filter(filtered, "segment_label", "Segment")
+    filtered, selected_filters["observed_price_band"] = sidebar_filter(filtered, "observed_price_band", "Observed price band")
+    filtered, selected_filters["evidence_strength"] = sidebar_filter(filtered, "evidence_strength", "Evidence strength")
+    filtered, selected_filters["slice_risk_level"] = sidebar_filter(filtered, "slice_risk_level", "Slice risk")
+    context_filters = {column: values for column, values in selected_filters.items() if column != "anomaly_flag"}
+    slice_context = apply_selected_filters(dataframe, context_filters)
 
     total = len(filtered)
     anomalies = int(filtered["anomaly_flag"].isin(["potentially_over_valued", "potentially_under_valued"]).sum()) if total else 0
@@ -358,12 +370,23 @@ def main() -> None:
         )
 
     with slice_tab:
-        label_counts = filtered["anomaly_flag"].map(LABEL_NAMES).fillna(filtered["anomaly_flag"]).value_counts().rename_axis("label").reset_index(name="transactions")
+        slice_scope_options = ["All review labels in current filters", "Selected review label only"]
+        slice_scope = st.radio(
+            "Slice summary scope",
+            slice_scope_options,
+            horizontal=True,
+            label_visibility="collapsed",
+        )
+        slice_frame = slice_context if slice_scope == slice_scope_options[0] else filtered
+        if selected_review_labels and slice_scope == slice_scope_options[0]:
+            st.caption("Slice summary ignores the Review label filter, so anomaly rates remain visible for the selected market slice.")
+
+        label_counts = slice_frame["anomaly_flag"].map(LABEL_NAMES).fillna(slice_frame["anomaly_flag"]).value_counts().rename_axis("label").reset_index(name="transactions")
         st.bar_chart(label_counts.set_index("label"))
         for column in ["zipcode", "segment_label", "observed_price_band", "evidence_strength", "slice_risk_level"]:
-            if column in filtered.columns:
+            if column in slice_frame.columns:
                 st.subheader(column.replace("_", " ").title())
-                summary = filtered.groupby(column, dropna=False).agg(
+                summary = slice_frame.groupby(column, dropna=False).agg(
                     transactions=("property_id", "size"),
                     anomalies=("anomaly_flag", lambda values: int(values.isin(["potentially_over_valued", "potentially_under_valued"]).sum())),
                     low_support=("anomaly_flag", lambda values: int((values == "insufficient_history").sum())),
@@ -371,6 +394,10 @@ def main() -> None:
                 )
                 summary["anomaly_rate"] = summary["anomalies"] / summary["transactions"]
                 summary["low_support_rate"] = summary["low_support"] / summary["transactions"]
+                summary = summary.reset_index()
+                summary[column] = summary[column].astype(str).map(lambda value: display_value(column, value))
+                for rate_column in ["anomaly_rate", "low_support_rate"]:
+                    summary[rate_column] = summary[rate_column].map(lambda value: f"{value:.1%}")
                 st.dataframe(summary.sort_values("transactions", ascending=False), use_container_width=True)
 
 
