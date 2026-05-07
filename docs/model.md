@@ -22,7 +22,7 @@ The validated workflow includes:
 - leakage-safe preprocessing through a fitted sklearn pipeline
 - out-of-fold fair-value estimates for training-era anomaly analysis
 - forward holdout predictions for test-era evaluation
-- runtime feature importance outputs
+- runtime feature importance and SHAP summary outputs
 
 ## Runtime Model Artifacts
 
@@ -46,6 +46,8 @@ the fitted artifacts are generated under:
 - `outputs/tables/model_baseline_comparison.csv`
 - `outputs/tables/xgboost_selection_grid.csv`
 - `outputs/reports/xgboost_selection_summary.json`
+- `outputs/figures/feature_importance.png`
+- `outputs/figures/shap_summary.png`
 These files are intentionally ignored by Git. They can be regenerated from source, configuration, and the downloaded dataset.
 
 ## Why Model Artifacts Are Not Committed

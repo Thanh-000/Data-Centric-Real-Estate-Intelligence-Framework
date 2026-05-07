@@ -22,5 +22,6 @@ Primary generated metric files:
 - `outputs/tables/anomaly_threshold_sensitivity.csv`
 - `outputs/reports/local_conformal_calibration_summary.json`
 - `outputs/reports/uncertainty_metrics.json`
+- `outputs/figures/shap_summary.png`
 
 The previous validated run used KMeans segmentation and an older abstention policy. It should be treated as a legacy baseline, not as the expected output for the current framework.

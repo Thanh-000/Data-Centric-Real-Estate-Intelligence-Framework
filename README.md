@@ -178,6 +178,7 @@ Core pipeline outputs:
 - `outputs/reports/pipeline_summary.md`
 - `outputs/reports/*_summary.json`
 - `outputs/figures/*.png`
+- `outputs/figures/shap_summary.png`
 
 ## Methodological Safeguards
 
