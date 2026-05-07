@@ -116,15 +116,32 @@ def options_for(dataframe: pd.DataFrame, column: str) -> list[str]:
     return sorted([str(value) for value in dataframe[column].dropna().unique()])
 
 
-def sidebar_filter(dataframe: pd.DataFrame, column: str, label: str) -> pd.DataFrame:
+def display_value(column: str, value: str) -> str:
+    if column == "anomaly_flag":
+        return LABEL_NAMES.get(value, value.replace("_", " ").title())
+    if column == "evidence_strength":
+        return value.replace("_", " ").title()
+    if column == "slice_risk_level":
+        return value.replace("_", " ").title()
+    if column == "segment_label":
+        return value.replace("segment_zipcode_", "Zipcode ")
+    return value
+
+
+def sidebar_filter(dataframe: pd.DataFrame, column: str, label: str) -> tuple[pd.DataFrame, list[str]]:
     options = options_for(dataframe, column)
     if not options:
         st.sidebar.caption(f"{label}: unavailable")
-        return dataframe
-    selected = st.sidebar.multiselect(label, options)
+        return dataframe, []
+    selected = st.sidebar.multiselect(
+        label,
+        options,
+        format_func=lambda value: display_value(column, value),
+        placeholder="All",
+    )
     if not selected:
-        return dataframe
-    return dataframe.loc[dataframe[column].astype(str).isin(selected)]
+        return dataframe, []
+    return dataframe.loc[dataframe[column].astype(str).isin(selected)], selected
 
 
 def format_currency(value: float | int | None) -> str:
@@ -181,19 +198,19 @@ def prepare_map_frame(dataframe: pd.DataFrame, focus_labels: list[str], max_poin
     return map_frame
 
 
-def render_map(dataframe: pd.DataFrame, focus_labels: list[str], max_points: int) -> None:
+def render_map(dataframe: pd.DataFrame, focus_labels: list[str], max_points: int, focus_source: str) -> None:
     if not {"lat", "long"}.issubset(dataframe.columns):
         st.info("Latitude/longitude columns are unavailable. Re-run the current pipeline version.")
         return
 
     map_frame = prepare_map_frame(dataframe, focus_labels=focus_labels, max_points=max_points)
     if map_frame.empty:
-        st.info("No rows match the current filters.")
+        st.info(f"No map rows match the current filters for {focus_source}.")
         return
 
     st.markdown(legend_html(), unsafe_allow_html=True)
     st.markdown(
-        f"<div class='hint'>Showing {len(map_frame):,} points. Point size follows absolute anomaly score; colors follow review label.</div>",
+        f"<div class='hint'>Showing {len(map_frame):,} points from {focus_source}. Point size follows absolute anomaly score; colors follow review label.</div>",
         unsafe_allow_html=True,
     )
 
@@ -256,12 +273,12 @@ def main() -> None:
     st.sidebar.divider()
 
     filtered = dataframe.copy()
-    filtered = sidebar_filter(filtered, "anomaly_flag", "Review label")
-    filtered = sidebar_filter(filtered, "zipcode", "Zipcode")
-    filtered = sidebar_filter(filtered, "segment_label", "Segment")
-    filtered = sidebar_filter(filtered, "observed_price_band", "Observed price band")
-    filtered = sidebar_filter(filtered, "evidence_strength", "Evidence strength")
-    filtered = sidebar_filter(filtered, "slice_risk_level", "Slice risk")
+    filtered, selected_review_labels = sidebar_filter(filtered, "anomaly_flag", "Review label")
+    filtered, _ = sidebar_filter(filtered, "zipcode", "Zipcode")
+    filtered, _ = sidebar_filter(filtered, "segment_label", "Segment")
+    filtered, _ = sidebar_filter(filtered, "observed_price_band", "Observed price band")
+    filtered, _ = sidebar_filter(filtered, "evidence_strength", "Evidence strength")
+    filtered, _ = sidebar_filter(filtered, "slice_risk_level", "Slice risk")
 
     total = len(filtered)
     anomalies = int(filtered["anomaly_flag"].isin(["potentially_over_valued", "potentially_under_valued"]).sum()) if total else 0
@@ -281,7 +298,13 @@ def main() -> None:
     map_tab, queue_tab, slice_tab = st.tabs(["Map", "Review queue", "Slice summary"])
 
     with map_tab:
-        render_map(filtered, focus_labels=MAP_FOCUS[map_focus], max_points=max_points)
+        if selected_review_labels:
+            focus_labels = selected_review_labels
+            focus_source = "selected review labels"
+        else:
+            focus_labels = MAP_FOCUS[map_focus]
+            focus_source = map_focus.lower()
+        render_map(filtered, focus_labels=focus_labels, max_points=max_points, focus_source=focus_source)
 
     with queue_tab:
         queue_columns = [
@@ -301,6 +324,24 @@ def main() -> None:
         ]
         available = [column for column in queue_columns if column in filtered.columns]
         display = filtered[available].copy()
+        if "anomaly_flag" in display.columns:
+            display["review_label"] = display["anomaly_flag"].map(LABEL_NAMES).fillna(display["anomaly_flag"])
+            ordered = [
+                "property_id",
+                "sale_date",
+                "zipcode",
+                "observed_price",
+                "fair_value_hat",
+                "lower_bound",
+                "upper_bound",
+                "review_label",
+                "anomaly_score",
+                "evidence_strength",
+                "slice_risk_level",
+                "top_drivers",
+                "why_flagged",
+            ]
+            display = display[[column for column in ordered if column in display.columns]]
         if "anomaly_score" in display.columns:
             display = display.sort_values(
                 "anomaly_score",
@@ -317,7 +358,7 @@ def main() -> None:
         )
 
     with slice_tab:
-        label_counts = filtered["anomaly_flag"].value_counts().rename_axis("label").reset_index(name="transactions")
+        label_counts = filtered["anomaly_flag"].map(LABEL_NAMES).fillna(filtered["anomaly_flag"]).value_counts().rename_axis("label").reset_index(name="transactions")
         st.bar_chart(label_counts.set_index("label"))
         for column in ["zipcode", "segment_label", "observed_price_band", "evidence_strength", "slice_risk_level"]:
             if column in filtered.columns:
