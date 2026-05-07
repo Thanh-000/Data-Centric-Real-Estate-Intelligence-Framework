@@ -39,7 +39,7 @@
 \maketitle
 
 \begin{abstract}
-This report presents the Data-Centric Real Estate Intelligence Framework (DC-REIF), a reproducible data science system for reviewing residential real estate sale prices in King County, Washington. The project follows the Team Data Science Process: business understanding, data gathering and preprocessing, exploratory data analysis, model implementation and evaluation, and data storytelling with recommendations. The current local run uses 21,597 cleaned transactions from the King County house sales dataset and implements a leakage-aware chronological modeling workflow. The official valuation model is XGBoost, evaluated against median, linear regression, and random forest baselines. On the held-out chronological test set, the system achieves an $R^2$ of 0.900, RMSE of \$120,357, MAE of \$67,590, and MAPE of 12.11\%. On the same held-out test protocol, the localized interval layer achieves 96.1\% empirical coverage overall and 90.4\% coverage in the highest observed price band. On the full scored portfolio, the decision layer identifies 628 of 21,597 transactions (2.91\%) for human review, including 431 potentially over-valued and 197 potentially under-valued sales. The system is positioned as a decision-support and triage product, not as an automated appraisal authority. SHAP and feature-importance outputs are used to explain model behavior while preserving a clear distinction between predictive explanation and causal proof.
+This report presents the Data-Centric Real Estate Intelligence Framework (DC-REIF), a reproducible data analytics and data science decision-support product for residential real estate valuation review in King County, Washington. The project follows the Team Data Science Process: business understanding, data gathering and preprocessing, exploratory data analysis, model implementation and evaluation, and data storytelling with recommendations. The current local run uses 21,597 cleaned transactions from the King County house sales dataset and implements a leakage-aware chronological modeling workflow. The official valuation model is XGBoost, evaluated against median, linear regression, and random forest baselines. On the held-out chronological test set, the system achieves an $R^2$ of 0.900, RMSE of \$120,357, MAE of \$67,590, and MAPE of 12.11\%. On the same held-out test protocol, the localized interval layer achieves 96.1\% empirical coverage overall and 90.4\% coverage in the highest observed price band. These coverage values are diagnostics under the implemented protocol, not theoretical or regulatory guarantees. On the full scored portfolio, the decision layer identifies 628 of 21,597 transactions (2.91\%) for human review, including 431 potentially over-valued and 197 potentially under-valued sales. The core business value is first-pass triage: the system reduces the initial review queue from the full portfolio to a prioritized subset while preserving uncertainty, explanation, and risk context. The system is positioned as model-assisted review support, not as an automated appraisal authority.
 \end{abstract}
 
 \newpage
@@ -150,7 +150,79 @@ Full-portfolio flag rate & 2.91\%\\
 \end{tabular}
 \end{table}
 
-The practical implication is that the system narrows a 21,597-record portfolio into a much smaller review queue while preserving explicit uncertainty diagnostics. This is the key data-storytelling message of the project: the output is not just a fitted regression model, but a reproducible workflow that connects data quality, valuation, uncertainty, explanation, and stakeholder review.
+The practical implication is that the system narrows a 21,597-record portfolio into a much smaller review queue while preserving explicit uncertainty diagnostics. The current interval-based queue contains 628 records, which means an analyst can begin with 2.91\% of the portfolio instead of manually screening every transaction. This is a triage reduction of 97.09\% for first-pass review, not proof that the remaining records require no professional oversight.
+
+\warningbox{The 96.1\% coverage value is an empirical diagnostic on the held-out chronological test protocol. It is not a theoretical split-conformal guarantee, a regulatory guarantee, or a substitute for professional comparable-sale review. The high-price Q5 segment still requires special caution because its average interval width is \$847,102.}
+
+\section{Product Operating Model and Business Value}
+
+\subsection{Decision-Support Positioning}
+DC-REIF should be evaluated as a data analytics and data science decision-support product, not as a standalone automated appraisal model. The product value comes from organizing review effort: the system converts a full portfolio into a prioritized review queue, explains why a transaction is unusual, and attaches trust signals so an analyst can decide whether the model output deserves action.
+
+The product separates three layers that are often mixed in machine-learning reports. \textbf{Model outputs} are predictions and intervals generated by the valuation engine. \textbf{Trust metrics} describe whether those outputs are empirically reliable under the evaluation protocol. \textbf{Business operation metrics} describe whether the workflow saves analyst time and produces useful review decisions. Table \ref{tab:metric_layers} makes this separation explicit.
+
+\begin{table}[H]
+\centering
+\caption{Metric layers for a valuation review product}
+\label{tab:metric_layers}
+\begin{tabular}{p{0.22\linewidth}p{0.35\linewidth}p{0.33\linewidth}}
+\toprule
+\textbf{Layer} & \textbf{Examples in DC-REIF} & \textbf{Decision question}\\
+\midrule
+Model output & Fair-value estimate, lower bound, upper bound, anomaly label, top drivers & What does the model believe about this sale relative to similar historical evidence?\\
+Trust metric & Held-out MAPE, empirical coverage, Q5 coverage, interval width, evidence strength, slice risk & How cautious should the reviewer be when using this model signal?\\
+Business operation metric & Flag rate, review queue size, analyst capacity, precision@K, reviewer acceptance rate, time saved, risk exposure reviewed & Does the product improve the valuation review workflow?\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Business KPI Framework}
+The current run already supports several operating KPIs, while others require a human-review pilot before they can be measured honestly. Table \ref{tab:business_kpis} distinguishes measured values from next-step product metrics. This avoids overstating model accuracy as business value.
+
+\begin{table}[H]
+\centering
+\caption{Business KPI framework for valuation review}
+\label{tab:business_kpis}
+\begin{tabular}{p{0.23\linewidth}p{0.24\linewidth}p{0.20\linewidth}p{0.23\linewidth}}
+\toprule
+\textbf{KPI} & \textbf{Definition} & \textbf{Current status} & \textbf{Use in operation}\\
+\midrule
+Review queue size & Number of full-portfolio records flagged by the interval decision layer & 628 of 21,597 & Defines the initial analyst workload.\\
+Flag rate & Flagged records divided by scored records & 2.91\% & Monitors whether the system is too noisy or too conservative.\\
+First-pass triage reduction & Records not initially sent to the review queue divided by scored records & 97.09\% & Estimates workload reduction before analyst validation.\\
+Review capacity & Number of cases an analyst can review per day or week & Needs pilot input & Converts queue size into staffing and turnaround planning.\\
+Time saved & Baseline manual-screening time minus model-assisted review time & Needs pilot input & Measures whether the dashboard creates operational value.\\
+Precision@50 / Precision@100 & Share of top ranked flags accepted as valid by reviewers & Needs pilot labels & Tests whether the prioritized queue is useful at practical review depths.\\
+Reviewer acceptance rate & Share of model flags marked valid by analysts & Needs pilot labels & Tracks trust and practical usefulness of model signals.\\
+Business risk exposure & Dollar amount or share of flagged transaction value reviewed & Needs policy definition & Prioritizes high-impact cases when analyst capacity is limited.\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{User Workflow}
+The target user is a mortgage valuation reviewer or valuation analyst. The analyst is not expected to inspect model internals or rerun training code. The expected workflow is: input transaction data, score transactions, inspect the queue, review evidence, make a final professional decision, and save feedback for future improvement.
+
+\begin{table}[H]
+\centering
+\caption{Analyst workflow from transaction input to feedback loop}
+\label{tab:user_workflow}
+\begin{tabular}{p{0.20\linewidth}p{0.36\linewidth}p{0.34\linewidth}}
+\toprule
+\textbf{Step} & \textbf{System output} & \textbf{Analyst action}\\
+\midrule
+Input transaction & Property attributes, sale date, location, observed sale price & Confirm that the record is in scope and data quality is acceptable.\\
+Fair-value prediction & \texttt{fair\_value\_estimate} & Compare the realized price with the model-supported central estimate.\\
+Uncertainty interval & \texttt{lower\_bound}, \texttt{upper\_bound}, interval width & Check whether the sale falls outside a cautious fair-value range.\\
+Anomaly label & \texttt{potentially\_over\_valued}, \texttt{potentially\_under\_valued}, or \texttt{within\_expected\_range} & Decide whether the case enters the human review queue.\\
+Trust context & \texttt{evidence\_strength}, \texttt{slice\_risk\_level}, empirical coverage diagnostics & Decide how much confidence to place in the model signal.\\
+Explanation & Top drivers and SHAP-supported feature contributions & Understand which property and market factors influenced the model output.\\
+Human decision & Reviewer label: valid flag, false positive, or uncertain & Apply professional judgment using comparable-sale evidence and policy context.\\
+Feedback saved & Reviewer notes, decision label, reason code, timestamp & Improve future thresholds, dashboard design, and model evaluation.\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+In this workflow, the observed price is the business fact, the fair-value estimate is the model's central signal, the interval bounds are the uncertainty guardrail, and the anomaly label is only a queueing decision. The fields \texttt{evidence\_strength} and \texttt{slice\_risk\_level} should be read as reviewer guidance: strong evidence supports faster triage, while high slice risk should trigger comparable-sale inspection before any conclusion is recorded.
 
 \section{Data Gathering and Preprocessing}
 
@@ -601,6 +673,37 @@ Overall & 50\% & 200 & 136 & 68.0\%\\
 
 The synthetic recall increases as the injected distortion grows, which is the expected direction. The moderate recall at 30--40\% shocks also confirms that the current interval policy is conservative: it prioritizes avoiding over-confident flags over catching every manipulated case.
 
+\subsection{Human Review Validation Plan}
+The project currently has no expert-labeled ground truth for whether a flagged sale is truly problematic. This means precision, recall, and reviewer trust cannot be claimed from the dataset alone. The correct next validation step is a controlled human-review pilot using the dashboard and exported review queue.
+
+The recommended pilot is to review the top 50 and top 100 model-flagged cases ranked by absolute anomaly score, with separate tracking for over-valued and under-valued candidates. Each case should be reviewed by at least one valuation analyst, and a second reviewer should audit a sample of disagreements if resources allow. Reviewers should assign one of three labels:
+\begin{itemize}
+    \item \textbf{Valid flag:} the model identified a case that deserves further valuation attention.
+    \item \textbf{False positive:} the sale is explainable by domain evidence not captured by the model.
+    \item \textbf{Uncertain:} the reviewer cannot decide without additional comparable-sale or document evidence.
+\end{itemize}
+
+\begin{table}[H]
+\centering
+\caption{Human-review validation metrics for the pilot}
+\label{tab:human_review_validation}
+\begin{tabular}{p{0.25\linewidth}p{0.45\linewidth}p{0.20\linewidth}}
+\toprule
+\textbf{Metric} & \textbf{Definition} & \textbf{Decision use}\\
+\midrule
+Precision@50 & Valid flags among the top 50 reviewed cases divided by 50 & Measures whether the highest-priority queue is useful.\\
+Precision@100 & Valid flags among the top 100 reviewed cases divided by 100 & Tests whether usefulness persists beyond the top cases.\\
+Reviewer acceptance rate & Valid flags divided by all reviewed non-uncertain cases & Estimates practical trust in the system.\\
+Over-valued precision & Valid over-valued flags divided by reviewed over-valued flags & Checks whether high-price or premium-market alerts are credible.\\
+Under-valued precision & Valid under-valued flags divided by reviewed under-valued flags & Checks whether potential under-pricing alerts are credible.\\
+Uncertain rate & Uncertain labels divided by reviewed cases & Identifies where more external evidence or better UI context is needed.\\
+Reviewer time per case & Average minutes from opening a case to recording a decision & Converts model queue size into staffing and time-saved estimates.\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The feedback loop should update both analytics and product design. If false positives concentrate in specific zipcodes, thresholds or interval calibration can be adjusted by segment. If uncertain labels are high because analysts lack context, the dashboard should add comparable-sale links, property detail pages, or reviewer notes. If precision@50 is high but precision@100 drops sharply, the product should expose a smaller default queue and reserve lower-ranked flags for secondary review.
+
 \subsection{Residual Diagnostics}
 Residual plots are used to inspect whether errors are randomly distributed or concentrated by prediction level and geography. The residual sign is $r_i=y_i-\hat{y}_i$: positive values indicate observed prices above model estimates, while negative values indicate observed prices below model estimates. Figure \ref{fig:residuals} shows the residual-versus-predicted diagnostic and the spatial residual map. These outputs are essential for identifying slices where the model may be systematically under- or over-estimating sale prices.
 
@@ -695,15 +798,18 @@ The project story is that real estate price review benefits from combining predi
     \item \textbf{XGBoost adds clear predictive value.} It outperforms random forest, linear regression, and the median baseline on RMSE, MAE, MAPE, and $R^2$.
     \item \textbf{The high-price segment is the key risk area.} Q5 has the widest intervals and highest dollar error. This is expected in real estate and should be explicitly communicated to stakeholders.
     \item \textbf{Spatial context matters.} Zipcode market segmentation, distance to Seattle core, and prior local market prices are among the most important components of the system.
-    \item \textbf{The interval layer is empirically conservative on the held-out test protocol.} Overall empirical coverage is 96.1\%, exceeding the nominal 90\% target; Q5 coverage is 90.4\%, narrowly satisfying the target.
+    \item \textbf{The interval layer is empirically conservative on the held-out test protocol.} Overall empirical coverage is 96.1\%, exceeding the nominal 90\% target; Q5 coverage is 90.4\%, narrowly satisfying the target. This remains a diagnostic result, not a formal guarantee.
     \item \textbf{The dashboard should be used as a triage surface.} The map and sales list help users inspect patterns, but final decisions require comparable-sale review and domain judgment.
+    \item \textbf{The largest missing business metric is reviewer validation.} The current system can create a queue, but it still needs precision@K, reviewer acceptance rate, time-per-case, and false-positive reason codes from a pilot.
 \end{enumerate}
 
 \subsection{Recommendations}
 \begin{enumerate}
     \item \textbf{Adopt the system as a review-prioritization tool.} Use the 628 model-flagged cases as a prioritized queue, not as automatic decisions.
     \item \textbf{Review high-price flags with extra caution.} High-price intervals are wider, so flagged cases should be paired with local comparable-sale evidence.
-    \item \textbf{Track reviewer outcomes.} The next version should capture whether reviewers accept, reject, or defer each model flag; this will enable precision, recall, and calibration-by-review metrics.
+    \item \textbf{Run a human-review pilot.} Review the top 50 and top 100 flagged cases, capture valid flag, false positive, and uncertain labels, and compute precision@K and reviewer acceptance rate.
+    \item \textbf{Track reviewer outcomes.} The next version should capture whether reviewers accept, reject, or defer each model flag; this will enable threshold tuning, false-positive analysis, and dashboard prioritization.
+    \item \textbf{Measure operational value.} Estimate analyst review capacity, time saved, queue completion time, and business risk exposure reviewed.
     \item \textbf{Evaluate direct heteroscedastic models.} Quantile regression with LightGBM or XGBoost quantile objectives should be tested against the current post-hoc interval policy.
     \item \textbf{Extend monitoring for repeated use.} If the system is used beyond the static dataset, monitor data freshness, distribution drift, interval coverage, MAPE, and flagged-rate changes.
     \item \textbf{Keep SHAP in the reporting workflow.} SHAP should remain part of the notebook and report because it supports transparency, but its outputs should be described as model behavior explanations rather than causal claims. Future work should add SHAP interaction diagnostics for the top engineered interaction features.
@@ -761,25 +867,85 @@ The most important dashboard design decision is to separate flagged review cases
 
 The dashboard also makes uncertainty visible. A sale can be inside the expected range, outside the expected range, or supported by limited local evidence. These states are displayed alongside interval bounds and slice-risk labels so the reviewer can distinguish ``strong review candidate'' from ``weak local evidence; inspect cautiously.'' This is aligned with the system's core purpose: model-assisted prioritization, not automated appraisal.
 
-\section{Limitations}
-The current system is credible as a course-level data science product, but it is not production-ready in a regulatory appraisal sense.
+As a product, the dashboard should be treated as an MVP consumption layer. It demonstrates that the model outputs can be used by stakeholders, but it does not yet provide the full operating controls required in a production review environment. Table \ref{tab:dashboard_roadmap} summarizes the recommended productization roadmap.
 
-\begin{itemize}
-    \item \textbf{Static data:} the dataset covers historical King County transactions from 2014--2015 and does not represent current market conditions.
-    \item \textbf{No manual-review labels:} there is no ground truth for whether a flagged transaction is truly problematic, so precision and recall cannot yet be measured.
-    \item \textbf{High-price uncertainty:} expensive properties require wider intervals, which reduces sharpness.
-    \item \textbf{Heteroscedasticity remains only partially handled:} the current run uses post-hoc interval widening rather than a model that directly estimates conditional quantiles or variance.
-    \item \textbf{Unobserved variables:} the dataset lacks mortgage conditions, school district quality, renovation quality details, interest rates, buyer-seller relationship, and listing history.
-    \item \textbf{Explanation limits:} SHAP and feature importance are not causal evidence.
-    \item \textbf{Dashboard maturity:} Streamlit is appropriate for a prototype, but a production product would need authentication, persisted reviews, audit logs, and model monitoring.
-\end{itemize}
+\begin{table}[H]
+\centering
+\caption{Dashboard productization roadmap}
+\label{tab:dashboard_roadmap}
+\begin{tabular}{p{0.25\linewidth}p{0.36\linewidth}p{0.29\linewidth}}
+\toprule
+\textbf{Capability} & \textbf{Product value} & \textbf{Priority}\\
+\midrule
+Property detail page & Shows full transaction context, model interval, comparable-sale notes, SHAP drivers, and reviewer history on one page & High\\
+Saved reviewer decisions & Stores valid flag, false positive, uncertain, reason code, and reviewer notes & High\\
+Audit log & Records who reviewed a case, when, and what changed & High for regulated use\\
+Export queue & Allows analysts to export filtered cases for committee review or documentation & Medium\\
+Confidence filters & Lets users prioritize strong-evidence flags or isolate high-risk low-support slices & Medium\\
+Map clustering & Reduces point overlap and makes dense urban areas easier to inspect & Medium\\
+Reviewer notes & Captures comparable-sale reasoning and qualitative evidence not present in the dataset & High\\
+Authentication and roles & Separates analyst, reviewer, and administrator permissions & Required for production\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Monitoring, Retraining, and Risk Controls}
+
+\subsection{Monitoring and Retraining Plan}
+If DC-REIF is used with new transactions, the main product risk becomes drift. Real estate markets change through seasonality, interest rates, inventory, neighborhood development, and buyer behavior. A model trained on static historical data can remain technically runnable while becoming operationally stale. The system therefore needs monitoring across data, model, uncertainty, and business workflow layers.
+
+\begin{table}[H]
+\centering
+\caption{Monitoring plan for repeated operational use}
+\label{tab:monitoring_plan}
+\begin{tabular}{p{0.24\linewidth}p{0.38\linewidth}p{0.28\linewidth}}
+\toprule
+\textbf{Monitor} & \textbf{What to track} & \textbf{Recommended action}\\
+\midrule
+Data freshness & Last ingestion date, number of new records, stale source files & Block scoring or warn users when data is outdated.\\
+Schema drift & Missing columns, new categories, changed data types & Fail validation before model scoring.\\
+Missingness drift & Missingness rates for \texttt{waterfront}, \texttt{view}, renovation fields, and location & Investigate source changes or imputation degradation.\\
+Price distribution drift & Median, mean, upper-tail quantiles, log-price distribution & Recalibrate thresholds and retrain if market levels shift.\\
+Zipcode/segment drift & Segment counts, new zipcodes, low-support segment share & Add fallback rules or collect more evidence before strong flags.\\
+Model error drift & MAPE, MAE, RMSE on newly reviewed or delayed-outcome records & Retrain when error exceeds policy tolerance.\\
+Coverage drift & Empirical interval coverage by price band and segment & Recalibrate interval half-widths or widen high-risk intervals.\\
+Flag-rate drift & Share of transactions sent to review queue by week or month & Detect overly noisy or overly silent review behavior.\\
+Reviewer outcome drift & Precision@K, acceptance rate, false-positive reasons & Improve thresholds, features, and dashboard context.\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A practical retraining cadence should combine schedule-based and trigger-based rules. A scheduled quarterly retraining cycle is reasonable for a prototype operating on new housing data. Trigger-based retraining should occur sooner when price distribution drift, segment support deterioration, MAPE drift, or coverage drift exceeds the organization's tolerance. The same chronological split principle should be retained so that validation continues to reflect future-facing deployment rather than random historical mixing.
+
+\subsection{Risk-Control Table}
+The current system is credible as a course-level DA/DS decision-support product, but it is not production-ready in a regulatory appraisal sense. Table \ref{tab:risk_controls} reframes limitations as product risks with explicit controls.
+
+\begin{table}[H]
+\centering
+\caption{Risk controls for responsible use}
+\label{tab:risk_controls}
+\begin{tabular}{p{0.24\linewidth}p{0.33\linewidth}p{0.33\linewidth}}
+\toprule
+\textbf{Risk} & \textbf{Impact} & \textbf{Control or next step}\\
+\midrule
+Static 2014--2015 data & Model may not represent current market conditions or interest-rate regimes & Use fresh transaction data, monitor drift, and retrain on a scheduled cadence.\\
+No human-review labels & True precision, recall, and reviewer trust cannot be measured & Run a top-50/top-100 reviewer validation pilot and track acceptance rates.\\
+High-price uncertainty & Q5 properties require very wide intervals, so flags need more domain context & Require comparable-sale review before concluding over- or under-valuation.\\
+Partial heteroscedasticity handling & Post-hoc interval widening may be less efficient than direct variance modeling & Evaluate quantile regression or other conditional interval models.\\
+Missing external variables & School quality, listing history, interest rates, renovation quality, and transaction context are absent & Add external data sources before production use.\\
+SHAP non-causality & Explanations can be misread as causal claims & Present SHAP as model-behavior evidence only, not proof of price drivers.\\
+Dashboard prototype & No saved decisions, authentication, audit log, or production access control & Add reviewer decision storage, role-based access, audit logging, and export workflows.\\
+Regulatory misuse & Users may treat model output as an appraisal decision & Position the system as model-assisted triage and require human final judgment.\\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \section{Conclusion}
-DC-REIF satisfies the full data science workflow required by the final project brief. It defines a business problem, validates and preprocesses raw housing data, performs exploratory analysis, implements and evaluates machine learning models, adds uncertainty-aware anomaly detection, presents explainability outputs, and translates results into actionable recommendations.
+DC-REIF satisfies the full data science workflow required by the final project brief while also demonstrating the structure of a DA/DS decision-support product. It defines a business problem, validates and preprocesses raw housing data, performs exploratory analysis, implements and evaluates machine learning models, adds uncertainty-aware anomaly detection, presents explainability outputs, and translates results into an analyst-facing review workflow.
 
 The current local results are strong for a reproducible academic data science system: XGBoost achieves held-out test $R^2 = 0.900$ and MAPE = 12.11\%, while the localized interval layer achieves 96.1\% overall empirical coverage and 90.4\% coverage in the highest observed price band on the held-out test protocol. The operational output is a focused full-portfolio review queue of 628 model-flagged transactions out of 21,597 scored records.
 
-The project should be presented as a model-assisted real estate intelligence framework. Its strongest contribution is not only predictive accuracy, but the integration of reproducible data engineering, leakage-aware modeling, uncertainty reporting, SHAP explainability, and a stakeholder-facing dashboard. Its main remaining improvement is to collect human review outcomes and current-market data so that the system can move from a static case study to an operational decision-support product.
+The project should be presented as a model-assisted real estate intelligence framework. Its strongest contribution is not only predictive accuracy, but the integration of data governance, leakage-aware modeling, empirical uncertainty diagnostics, SHAP explainability, business KPI framing, and a stakeholder-facing dashboard review workflow. Its main remaining improvement is to collect human review outcomes and current-market data so that precision@K, reviewer acceptance, time saved, and drift controls can be measured in operation.
 
 \section{Team Contribution Evidence}
 The repository evidence indicates work across the full data science lifecycle. If individual names are required by the final submission portal, the team should replace the role labels in Table \ref{tab:contribution} with member names before submission.
