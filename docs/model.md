@@ -24,6 +24,7 @@ The validated workflow includes:
 - out-of-fold fair-value estimates for training-era anomaly analysis
 - validation-holdout conformal calibration before forward test-era evaluation
 - default conformal alpha of 0.10, targeting 90% nominal coverage on the validation-calibrated holdout workflow
+- upper-tail interval correction for the highest predicted price bands, because high-price properties have wider and less stable residuals
 - runtime feature importance and SHAP summary outputs
 
 ## Runtime Model Artifacts

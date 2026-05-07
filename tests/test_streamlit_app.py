@@ -47,8 +47,8 @@ def _dashboard_frame() -> pd.DataFrame:
 def test_map_focus_is_authoritative_when_review_labels_include_within_range():
     selected = ["within_expected_range", "insufficient_history"]
 
-    assert map_labels_for_focus("Anomalies + low support", selected) == ["insufficient_history"]
-    assert map_excluded_labels("Anomalies + low support", selected) == ["within_expected_range"]
+    assert map_labels_for_focus("Anomalies only", selected) == ["insufficient_history"]
+    assert map_excluded_labels("Anomalies only", selected) == ["within_expected_range"]
     assert map_labels_for_focus("All transactions", selected) == ["insufficient_history", "within_expected_range"]
 
 
@@ -111,8 +111,11 @@ def test_build_review_queue_uses_friendly_label_and_sorts_by_absolute_score():
     queue = build_review_queue(_dashboard_frame())
 
     assert "Model signal" in queue.columns
+    assert "Model confidence" in queue.columns
+    assert "Human review note" in queue.columns
     assert queue["Property ID"].tolist()[:2] == ["3", "2"]
     assert queue.loc[queue["Property ID"].eq("2"), "Model signal"].iloc[0] == "Over-valued"
+    assert "candidate for human review" in queue.loc[queue["Property ID"].eq("2"), "Human review note"].iloc[0]
 
 
 def test_build_slice_summary_keeps_rates_visible_across_labels():

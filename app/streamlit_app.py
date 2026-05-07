@@ -43,13 +43,11 @@ FILTER_LABELS = {
 
 FOCUS_LABELS = {
     "Anomalies only": "Model-flagged cases",
-    "Anomalies + low support": "Model-flagged + limited evidence",
     "All transactions": "All sales for context",
 }
 
 FOCUS_HELP = {
     "Anomalies only": "Shows model-flagged candidates for human review. This is not a final valuation judgment.",
-    "Anomalies + low support": "Adds cases where local evidence is limited, if any exist.",
     "All transactions": "Shows normal sales too, useful for geographic context but visually denser.",
 }
 
@@ -65,6 +63,8 @@ QUEUE_COLUMN_NAMES = {
     "anomaly_score": "Review score",
     "evidence_strength": "Evidence strength",
     "slice_risk_level": "Slice risk",
+    "model_confidence": "Model confidence",
+    "review_note": "Human review note",
     "top_drivers": "Main drivers",
     "why_flagged": "Reason",
 }
@@ -97,8 +97,7 @@ MARKET_SLICE_COLUMNS = [
 ]
 
 MAP_FOCUS = {
-    "Anomalies only": ACTIONABLE_LABELS,
-    "Anomalies + low support": [*ACTIONABLE_LABELS, "insufficient_history"],
+    "Anomalies only": [*ACTIONABLE_LABELS, "insufficient_history"],
     "All transactions": [
         "potentially_over_valued",
         "potentially_under_valued",
@@ -258,6 +257,29 @@ def map_excluded_labels(map_focus: str, selected_review_labels: list[str]) -> li
     return [label for label in selected_review_labels if label not in focus]
 
 
+def model_confidence(evidence_strength: object, slice_risk_level: object) -> str:
+    evidence = str(evidence_strength)
+    risk = str(slice_risk_level)
+    if evidence == "strong" and risk in {"low", "medium"}:
+        return "Higher"
+    if evidence in {"moderate", "strong"} and risk != "high":
+        return "Medium"
+    return "Lower"
+
+
+def review_note(row: pd.Series) -> str:
+    signal = LABEL_NAMES.get(str(row.get("anomaly_flag")), str(row.get("anomaly_flag", "Unknown")))
+    reason = str(row.get("why_flagged", "")).strip()
+    drivers = str(row.get("top_drivers", "")).strip()
+    confidence = model_confidence(row.get("evidence_strength"), row.get("slice_risk_level"))
+    if signal == "Within range":
+        return f"Inside the model range. Confidence: {confidence}."
+    if signal == "Low support":
+        return f"Local evidence is limited. Review comparable sales before using this estimate. Confidence: {confidence}."
+    driver_text = f" Main drivers: {drivers}." if drivers else ""
+    return f"{signal} candidate for human review. {reason}{driver_text} Confidence: {confidence}."
+
+
 def summarize_metrics(dataframe: pd.DataFrame, full_count: int) -> dict[str, float | int]:
     total = int(len(dataframe))
     if not total:
@@ -325,6 +347,11 @@ def build_review_queue(dataframe: pd.DataFrame) -> pd.DataFrame:
     display = dataframe[available].copy()
     if "anomaly_flag" in display.columns:
         display["review_label"] = display["anomaly_flag"].map(LABEL_NAMES).fillna(display["anomaly_flag"])
+        display["model_confidence"] = display.apply(
+            lambda row: model_confidence(row.get("evidence_strength"), row.get("slice_risk_level")),
+            axis=1,
+        )
+        display["review_note"] = display.apply(review_note, axis=1)
         ordered = [
             "property_id",
             "sale_date",
@@ -335,6 +362,8 @@ def build_review_queue(dataframe: pd.DataFrame) -> pd.DataFrame:
             "upper_bound",
             "review_label",
             "anomaly_score",
+            "model_confidence",
+            "review_note",
             "evidence_strength",
             "slice_risk_level",
             "top_drivers",
@@ -551,7 +580,7 @@ def main() -> None:
             excluded_labels = map_excluded_labels(map_focus, selected_review_labels)
             if excluded_labels:
                 excluded_names = ", ".join(display_value("anomaly_flag", label) for label in excluded_labels)
-                st.caption(f"Map view excludes {excluded_names}. Use All sales to include them on the map.")
+                st.caption(f"Map display excludes {excluded_names}. Use All sales for context to include them on the map.")
         if not focus_labels:
             st.info("The selected model signal is outside the current map view. Switch to All sales or adjust Model signal.")
         else:

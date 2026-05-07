@@ -46,6 +46,13 @@ def assign_prediction_bands(predictions: pd.Series, edges: list[float]) -> pd.Se
     return bands.astype("string")
 
 
+def _band_number(label: object) -> int:
+    text = str(label)
+    if text.startswith("Q") and text[1:].isdigit():
+        return int(text[1:])
+    return 0
+
+
 def _smoothed_q_hat(residuals: pd.Series, alpha: float, global_q_hat: float, min_samples: int) -> tuple[float, int, float]:
     sample_count = int(residuals.dropna().shape[0])
     if sample_count == 0:
@@ -62,6 +69,8 @@ def calibrate_local_conformal(
     alpha: float = 0.1,
     min_price_band_samples: int = 300,
     min_segment_samples: int = 200,
+    upper_tail_band_count: int = 2,
+    upper_tail_multiplier: float = 1.35,
 ) -> tuple[pd.DataFrame, LocalCalibrationArtifacts]:
     calibration = calibration_frame.dropna(subset=["fair_value_hat", "observed_price"]).copy()
     if calibration.empty:
@@ -89,7 +98,11 @@ def calibrate_local_conformal(
                 "mean_abs_residual": float(frame["abs_residual"].mean()),
             }
         )
-    price_band_summary = pd.DataFrame(band_rows).sort_values("predicted_price_band").reset_index(drop=True)
+    price_band_summary = pd.DataFrame(band_rows)
+    if not price_band_summary.empty:
+        price_band_summary = price_band_summary.assign(
+            _band_order=price_band_summary["predicted_price_band"].map(_band_number)
+        ).sort_values("_band_order").drop(columns="_band_order").reset_index(drop=True)
 
     segment_rows: list[dict[str, Any]] = []
     for segment_label, frame in calibration.groupby("segment_label", dropna=False):
@@ -123,11 +136,27 @@ def calibrate_local_conformal(
     prediction_rows["segment_support_n"] = prediction_rows["segment_label"].map(segment_count_map).fillna(0).astype(int)
     prediction_rows["q_hat"] = prediction_rows[["price_band_q_hat", "segment_q_hat"]].max(axis=1)
     prediction_rows["q_hat"] = prediction_rows["q_hat"].fillna(global_q_hat).clip(lower=0.9 * global_q_hat)
+    band_numbers = price_band_summary["predicted_price_band"].map(_band_number) if not price_band_summary.empty else pd.Series(dtype=int)
+    max_band_number = int(band_numbers.max()) if not band_numbers.empty else 0
+    upper_tail_bands = [
+        f"Q{band_number}"
+        for band_number in range(max(1, max_band_number - upper_tail_band_count + 1), max_band_number + 1)
+    ]
+    upper_tail_mask = prediction_rows["predicted_price_band"].isin(upper_tail_bands)
+    upper_tail_floor = prediction_rows["price_band_q_hat"] * float(upper_tail_multiplier)
+    prediction_rows["upper_tail_adjusted"] = upper_tail_mask
+    prediction_rows.loc[upper_tail_mask, "q_hat"] = np.maximum(
+        prediction_rows.loc[upper_tail_mask, "q_hat"],
+        upper_tail_floor.loc[upper_tail_mask],
+    )
 
     calibration_summary = {
         "interval_method": "conformal_prediction_residual_quantile_by_predicted_price_decile_and_segment",
         "alpha": float(alpha),
         "nominal_coverage_target": float(1 - alpha),
+        "upper_tail_bands": upper_tail_bands,
+        "upper_tail_multiplier": float(upper_tail_multiplier),
+        "upper_tail_adjusted_rows": int(upper_tail_mask.sum()),
         "global_q_hat": float(global_q_hat),
         "price_band_edges": [float(edge) for edge in price_band_edges],
         "min_price_band_samples": int(min_price_band_samples),
