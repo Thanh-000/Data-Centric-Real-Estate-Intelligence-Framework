@@ -7,6 +7,7 @@ from app.streamlit_app import (
     map_labels_for_focus,
     prepare_map_frame,
     summarize_metrics,
+    status_line,
 )
 
 
@@ -75,24 +76,25 @@ def test_summarize_metrics_counts_actionable_low_support_and_within_range():
     assert metrics["low_support"] == 1
     assert metrics["within_range"] == 1
     assert metrics["coverage"] == 0.5
+    assert status_line(metrics) == "2 sales need pricing review and 1 sale has limited local evidence in the current view."
 
 
 def test_build_review_queue_uses_friendly_label_and_sorts_by_absolute_score():
     queue = build_review_queue(_dashboard_frame())
 
-    assert "review_label" in queue.columns
-    assert queue["property_id"].tolist()[:2] == ["3", "2"]
-    assert queue.loc[queue["property_id"].eq("2"), "review_label"].iloc[0] == "Over-valued"
+    assert "Review outcome" in queue.columns
+    assert queue["Property ID"].tolist()[:2] == ["3", "2"]
+    assert queue.loc[queue["Property ID"].eq("2"), "Review outcome"].iloc[0] == "Over-valued"
 
 
 def test_build_slice_summary_keeps_rates_visible_across_labels():
     summary = build_slice_summary(_dashboard_frame(), "observed_price_band")
-    q1 = summary.loc[summary["observed_price_band"].eq("Q1")].iloc[0]
-    q5 = summary.loc[summary["observed_price_band"].eq("Q5")].iloc[0]
+    q1 = summary.loc[summary["Price band"].eq("Q1")].iloc[0]
+    q5 = summary.loc[summary["Price band"].eq("Q5")].iloc[0]
 
-    assert q1["transactions"] == 2
-    assert q1["anomalies"] == 1
-    assert q1["anomaly_rate"] == "50.0%"
-    assert q5["transactions"] == 2
-    assert q5["low_support"] == 1
-    assert q5["low_support_rate"] == "50.0%"
+    assert q1["Sales"] == 2
+    assert q1["Review flags"] == 1
+    assert q1["Review flag rate"] == "50.0%"
+    assert q5["Sales"] == 2
+    assert q5["Low support"] == 1
+    assert q5["Low-support rate"] == "50.0%"

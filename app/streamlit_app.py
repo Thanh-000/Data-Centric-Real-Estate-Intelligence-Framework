@@ -33,6 +33,51 @@ LABEL_NAMES = {
 
 ACTIONABLE_LABELS = ["potentially_over_valued", "potentially_under_valued"]
 
+FILTER_LABELS = {
+    "anomaly_flag": "Review outcome",
+    "zipcode": "Zipcode",
+    "segment_label": "Market segment",
+    "observed_price_band": "Price band",
+    "evidence_strength": "Evidence strength",
+    "slice_risk_level": "Slice risk",
+}
+
+FOCUS_LABELS = {
+    "Anomalies only": "Review flags",
+    "Anomalies + low support": "Review flags + low support",
+    "All transactions": "All sales",
+}
+
+QUEUE_COLUMN_NAMES = {
+    "property_id": "Property ID",
+    "sale_date": "Sale date",
+    "zipcode": "Zipcode",
+    "observed_price": "Observed price",
+    "fair_value_hat": "Fair value estimate",
+    "lower_bound": "Lower fair range",
+    "upper_bound": "Upper fair range",
+    "review_label": "Review outcome",
+    "anomaly_score": "Review score",
+    "evidence_strength": "Evidence strength",
+    "slice_risk_level": "Slice risk",
+    "top_drivers": "Main drivers",
+    "why_flagged": "Reason",
+}
+
+SLICE_COLUMN_NAMES = {
+    "zipcode": "Zipcode",
+    "segment_label": "Market segment",
+    "observed_price_band": "Price band",
+    "evidence_strength": "Evidence strength",
+    "slice_risk_level": "Slice risk",
+    "transactions": "Sales",
+    "anomalies": "Review flags",
+    "low_support": "Low support",
+    "median_price": "Median price",
+    "anomaly_rate": "Review flag rate",
+    "low_support_rate": "Low-support rate",
+}
+
 MAP_FOCUS = {
     "Anomalies only": ACTIONABLE_LABELS,
     "Anomalies + low support": [*ACTIONABLE_LABELS, "insufficient_history"],
@@ -106,6 +151,14 @@ def inject_css() -> None:
             font-size: 0.92rem;
             margin-bottom: 0.75rem;
         }
+        .status-line {
+            border-left: 4px solid #ff4b4b;
+            background: rgba(128, 128, 128, 0.08);
+            border-radius: 6px;
+            padding: 0.75rem 0.9rem;
+            margin: 0.8rem 0 1rem 0;
+            font-size: 0.96rem;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -128,6 +181,10 @@ def display_value(column: str, value: str) -> str:
     if column == "segment_label":
         return value.replace("segment_zipcode_", "Zipcode ")
     return value
+
+
+def display_column(column: str) -> str:
+    return FILTER_LABELS.get(column, column.replace("_", " ").title())
 
 
 def sidebar_filter(dataframe: pd.DataFrame, column: str, label: str) -> tuple[pd.DataFrame, list[str]]:
@@ -188,6 +245,24 @@ def summarize_metrics(dataframe: pd.DataFrame, full_count: int) -> dict[str, flo
     }
 
 
+def status_line(metrics: dict[str, float | int]) -> str:
+    def sale_word(count: float | int) -> str:
+        return "sale" if int(count) == 1 else "sales"
+
+    if metrics["transactions"] == 0:
+        return "No sales match the current filters."
+    if metrics["anomalies"] == 0 and metrics["low_support"] == 0:
+        return "Current filters show sales inside the expected fair-value range."
+    parts = []
+    if metrics["anomalies"]:
+        verb = "needs" if int(metrics["anomalies"]) == 1 else "need"
+        parts.append(f"{metrics['anomalies']:,} {sale_word(metrics['anomalies'])} {verb} pricing review")
+    if metrics["low_support"]:
+        verb = "has" if int(metrics["low_support"]) == 1 else "have"
+        parts.append(f"{metrics['low_support']:,} {sale_word(metrics['low_support'])} {verb} limited local evidence")
+    return " and ".join(parts) + " in the current view."
+
+
 def build_review_queue(dataframe: pd.DataFrame) -> pd.DataFrame:
     queue_columns = [
         "property_id",
@@ -231,7 +306,7 @@ def build_review_queue(dataframe: pd.DataFrame) -> pd.DataFrame:
             ascending=False,
             na_position="last",
         )
-    return display
+    return display.rename(columns=QUEUE_COLUMN_NAMES)
 
 
 def build_slice_summary(dataframe: pd.DataFrame, column: str) -> pd.DataFrame:
@@ -247,7 +322,7 @@ def build_slice_summary(dataframe: pd.DataFrame, column: str) -> pd.DataFrame:
     summary[column] = summary[column].astype(str).map(lambda value: display_value(column, value))
     for rate_column in ["anomaly_rate", "low_support_rate"]:
         summary[rate_column] = summary[rate_column].map(lambda value: f"{value:.1%}")
-    return summary.sort_values("transactions", ascending=False)
+    return summary.sort_values("transactions", ascending=False).rename(columns=SLICE_COLUMN_NAMES)
 
 
 def format_currency(value: float | int | None) -> str:
@@ -260,6 +335,22 @@ def format_score(value: float | int | None) -> str:
     if pd.isna(value):
         return "-"
     return f"{float(value):.3f}"
+
+
+def queue_column_config() -> dict[str, object]:
+    return {
+        "Observed price": st.column_config.NumberColumn("Observed price", format="$%d"),
+        "Fair value estimate": st.column_config.NumberColumn("Fair value estimate", format="$%d"),
+        "Lower fair range": st.column_config.NumberColumn("Lower fair range", format="$%d"),
+        "Upper fair range": st.column_config.NumberColumn("Upper fair range", format="$%d"),
+        "Review score": st.column_config.NumberColumn("Review score", format="%.3f"),
+    }
+
+
+def slice_column_config() -> dict[str, object]:
+    return {
+        "Median price": st.column_config.NumberColumn("Median price", format="$%d"),
+    }
 
 
 def rgba_css(color: list[int]) -> str:
@@ -370,61 +461,68 @@ def main() -> None:
 
     dataframe = load_property_table(str(path))
 
-    map_focus = st.sidebar.radio("Map focus", list(MAP_FOCUS), index=1)
+    map_focus = st.sidebar.radio("Map view", list(MAP_FOCUS), index=1, format_func=lambda value: FOCUS_LABELS[value])
     max_points = st.sidebar.slider("Max map points", min_value=500, max_value=12000, value=5000, step=500)
     st.sidebar.divider()
 
     selected_filters: dict[str, list[str]] = {}
     filtered = dataframe.copy()
-    filtered, selected_review_labels = sidebar_filter(filtered, "anomaly_flag", "Review label")
+    filtered, selected_review_labels = sidebar_filter(filtered, "anomaly_flag", FILTER_LABELS["anomaly_flag"])
     selected_filters["anomaly_flag"] = selected_review_labels
-    filtered, selected_filters["zipcode"] = sidebar_filter(filtered, "zipcode", "Zipcode")
-    filtered, selected_filters["segment_label"] = sidebar_filter(filtered, "segment_label", "Segment")
-    filtered, selected_filters["observed_price_band"] = sidebar_filter(filtered, "observed_price_band", "Observed price band")
-    filtered, selected_filters["evidence_strength"] = sidebar_filter(filtered, "evidence_strength", "Evidence strength")
-    filtered, selected_filters["slice_risk_level"] = sidebar_filter(filtered, "slice_risk_level", "Slice risk")
+    filtered, selected_filters["zipcode"] = sidebar_filter(filtered, "zipcode", FILTER_LABELS["zipcode"])
+    filtered, selected_filters["segment_label"] = sidebar_filter(filtered, "segment_label", FILTER_LABELS["segment_label"])
+    filtered, selected_filters["observed_price_band"] = sidebar_filter(filtered, "observed_price_band", FILTER_LABELS["observed_price_band"])
+    filtered, selected_filters["evidence_strength"] = sidebar_filter(filtered, "evidence_strength", FILTER_LABELS["evidence_strength"])
+    filtered, selected_filters["slice_risk_level"] = sidebar_filter(filtered, "slice_risk_level", FILTER_LABELS["slice_risk_level"])
     context_filters = {column: values for column, values in selected_filters.items() if column != "anomaly_flag"}
     slice_context = apply_selected_filters(dataframe, context_filters)
 
     metrics = summarize_metrics(filtered, full_count=len(dataframe))
 
-    st.title("Pricing Anomaly Review")
-    st.caption("Review realized sale transactions by anomaly label, local evidence, and model-supported fair-value interval.")
+    st.title("Real Estate Pricing Review")
+    st.caption("Sales are grouped by whether the observed price falls inside or outside the model-supported fair-value range.")
+    st.markdown(f"<div class='status-line'>{status_line(metrics)}</div>", unsafe_allow_html=True)
 
     metric_cols = st.columns(4)
-    metric_cols[0].metric("Transactions", f"{metrics['transactions']:,}", f"{metrics['coverage']:.1%} of dataset")
-    metric_cols[1].metric("Potential anomalies", f"{metrics['anomalies']:,}")
-    metric_cols[2].metric("Low-support cases", f"{metrics['low_support']:,}")
+    metric_cols[0].metric("Sales in view", f"{metrics['transactions']:,}", f"{metrics['coverage']:.1%} of dataset")
+    metric_cols[1].metric("Need review", f"{metrics['anomalies']:,}")
+    metric_cols[2].metric("Limited evidence", f"{metrics['low_support']:,}")
     metric_cols[3].metric("Within range", f"{metrics['within_range']:,}")
 
-    map_tab, queue_tab, slice_tab = st.tabs(["Map", "Review queue", "Slice summary"])
+    map_tab, queue_tab, slice_tab = st.tabs(["Map", "Sales list", "Market slices"])
 
     with map_tab:
         focus_labels = map_labels_for_focus(map_focus, selected_review_labels)
         active_names = ", ".join(display_value("anomaly_flag", label) for label in focus_labels)
-        focus_source = f"{map_focus.lower()} ({active_names})" if active_names else map_focus.lower()
+        focus_source = f"{FOCUS_LABELS[map_focus].lower()} ({active_names})" if active_names else FOCUS_LABELS[map_focus].lower()
         if selected_review_labels:
             excluded_labels = map_excluded_labels(map_focus, selected_review_labels)
             if excluded_labels:
                 excluded_names = ", ".join(display_value("anomaly_flag", label) for label in excluded_labels)
-                st.caption(f"Map focus excludes {excluded_names}. Use All transactions to include them on the map.")
+                st.caption(f"Map view excludes {excluded_names}. Use All sales to include them on the map.")
         if not focus_labels:
-            st.info("The selected Review label does not belong to the current Map focus. Change Map focus to All transactions or adjust Review label.")
+            st.info("The selected review outcome is outside the current map view. Switch to All sales or adjust Review outcome.")
         else:
             render_map(filtered, focus_labels=focus_labels, max_points=max_points, focus_source=focus_source)
 
     with queue_tab:
         display = build_review_queue(filtered)
-        st.dataframe(display, use_container_width=True, height=560, hide_index=True)
+        st.dataframe(
+            display,
+            use_container_width=True,
+            height=560,
+            hide_index=True,
+            column_config=queue_column_config(),
+        )
         st.download_button(
-            "Download review queue",
+            "Download sales list",
             data=display.to_csv(index=False),
             file_name="dc_reif_review_queue.csv",
             mime="text/csv",
         )
 
     with slice_tab:
-        slice_scope_options = ["All review labels in current filters", "Selected review label only"]
+        slice_scope_options = ["All review outcomes in current filters", "Selected outcome only"]
         slice_scope = st.radio(
             "Slice summary scope",
             slice_scope_options,
@@ -433,14 +531,19 @@ def main() -> None:
         )
         slice_frame = slice_context if slice_scope == slice_scope_options[0] else filtered
         if selected_review_labels and slice_scope == slice_scope_options[0]:
-            st.caption("Slice summary ignores the Review label filter, so anomaly rates remain visible for the selected market slice.")
+            st.caption("Market slices keep every review outcome visible inside the selected market filters.")
 
         label_counts = slice_frame["anomaly_flag"].map(LABEL_NAMES).fillna(slice_frame["anomaly_flag"]).value_counts().rename_axis("label").reset_index(name="transactions")
         st.bar_chart(label_counts.set_index("label"))
         for column in ["zipcode", "segment_label", "observed_price_band", "evidence_strength", "slice_risk_level"]:
             if column in slice_frame.columns:
-                st.subheader(column.replace("_", " ").title())
-                st.dataframe(build_slice_summary(slice_frame, column), use_container_width=True)
+                st.subheader(display_column(column))
+                st.dataframe(
+                    build_slice_summary(slice_frame, column),
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config=slice_column_config(),
+                )
 
 
 if __name__ == "__main__":
