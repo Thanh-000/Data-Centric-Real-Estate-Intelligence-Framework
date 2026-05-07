@@ -95,6 +95,45 @@ def create_residual_diagnostics(dataframe: pd.DataFrame, figures_dir: Path) -> d
     fig.savefig(outputs["residual_vs_predicted"], dpi=150)
     plt.close(fig)
 
+    binned = scored.copy()
+    ranked = binned["fair_value_hat"].rank(method="first")
+    binned["predicted_value_bin"] = pd.qcut(ranked, q=min(10, binned["fair_value_hat"].nunique()), duplicates="drop")
+    variance_summary = (
+        binned.groupby("predicted_value_bin", observed=True)
+        .agg(
+            predicted_midpoint=("fair_value_hat", "median"),
+            residual_std=("residual", "std"),
+            mean_abs_residual=("residual", lambda series: float(series.abs().mean())),
+            count=("residual", "size"),
+        )
+        .dropna(subset=["predicted_midpoint", "residual_std"])
+        .reset_index(drop=True)
+    )
+    if not variance_summary.empty:
+        fig, ax = plt.subplots(figsize=(9, 5))
+        ax.plot(
+            variance_summary["predicted_midpoint"],
+            variance_summary["residual_std"],
+            marker="o",
+            color="#d95f02",
+            label="Residual standard deviation",
+        )
+        ax.plot(
+            variance_summary["predicted_midpoint"],
+            variance_summary["mean_abs_residual"],
+            marker="s",
+            color="#33658a",
+            label="Mean absolute residual",
+        )
+        ax.set_title("Residual Variance by Predicted Fair Value Bin")
+        ax.set_xlabel("Median predicted fair value in bin")
+        ax.set_ylabel("Error magnitude")
+        ax.legend()
+        fig.tight_layout()
+        outputs["residual_variance_by_predicted_bin"] = figures_dir / "residual_variance_by_predicted_bin.png"
+        fig.savefig(outputs["residual_variance_by_predicted_bin"], dpi=150)
+        plt.close(fig)
+
     if {"lat", "long"}.issubset(scored.columns):
         fig, ax = plt.subplots(figsize=(10, 6))
         limit = scored["residual"].abs().quantile(0.95)
@@ -154,6 +193,8 @@ def write_trust_summary(
         "",
         "## Uncertainty",
         "",
+        "Coverage values are empirical diagnostics under the current chronological, localized, upper-tail-adjusted protocol; they are not theoretical guarantees of standard split conformal prediction.",
+        "",
         f"- Global empirical coverage: {interval_metrics.get('empirical_coverage', float('nan')):.1%}",
         f"- High-price Q5 empirical coverage: {q5_coverage:.1%}",
         f"- Average interval width: ${interval_metrics.get('average_interval_width', float('nan')):,.0f}",
@@ -164,7 +205,7 @@ def write_trust_summary(
         f"- Model-flagged cases: {model_flagged:,}",
         f"- Potentially over-valued: {int(counts.get('potentially_over_valued', 0)):,}",
         f"- Potentially under-valued: {int(counts.get('potentially_under_valued', 0)):,}",
-        f"- Limited-evidence cases: {int(counts.get('insufficient_history', 0)):,}",
+        f"- Withheld insufficient-history cases: {int(counts.get('insufficient_history', 0)):,}",
         f"- Within model range: {int(counts.get('within_expected_range', 0)):,}",
         "",
         "## Known Limitations",

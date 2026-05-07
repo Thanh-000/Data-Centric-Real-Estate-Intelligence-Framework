@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: install quickstart download run health analyze-abstention evaluate-slices dashboard notebook test clean
+.PHONY: install quickstart download run health analyze-abstention evaluate-slices evaluate-synthetic dashboard notebook test clean
 
 install:
 	$(PYTHON) -m pip install --upgrade pip
@@ -23,6 +23,9 @@ analyze-abstention:
 
 evaluate-slices:
 	$(PYTHON) scripts/evaluate_slices.py
+
+evaluate-synthetic:
+	$(PYTHON) scripts/evaluate_synthetic_anomalies.py
 
 dashboard:
 	streamlit run app/streamlit_app.py

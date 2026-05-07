@@ -72,17 +72,16 @@ For holdout rows, the workflow uses forward predictions from the selected model.
 - within expected range
 - potentially over-valued
 - potentially under-valued
-- insufficient history
 
-The runtime property table now uses fallback scoring from the selected final model so low-support rows can still be reviewed. Low-support rows are marked through evidence and slice-risk fields instead of being silently dropped from the review surface.
+The earlier `insufficient_history` final outcome is retained only for backward compatibility in utility scripts. The runtime property table now uses fallback scoring from the selected final model so low-support rows can still be reviewed. Low-support rows are marked through `evidence_strength`, `slice_risk_level`, and confidence notes instead of being withheld or silently dropped from the review surface.
 
 ## 10. Uncertainty Layer
 
-The uncertainty layer uses localized conformal prediction residual quantiles by predicted price decile and segment. Calibration is taken from the chronological validation holdout immediately before the test window, then evaluated on later test transactions. The default alpha is 0.10, so the nominal target is 90% coverage; slice-level coverage, especially for the upper price band, is reported separately because real-estate residuals drift over time and thin zipcode segments can be unstable.
+The uncertainty layer uses conformal-inspired residual quantiles by predicted price decile and segment. Calibration is taken from the chronological validation holdout immediately before the test window, then evaluated on later test transactions. The default alpha is 0.10, so the nominal target is 90% empirical coverage; slice-level coverage, especially for the upper price band, is reported separately because real-estate residuals drift over time and thin zipcode segments can be unstable. Because the workflow is chronological, localized, and upper-tail adjusted, reported coverage is an empirical diagnostic for this protocol rather than a theoretical split-conformal guarantee.
 
 The highest predicted price bands receive an explicit upper-tail interval correction. This intentionally widens intervals for expensive properties, where residual variance is larger and under-coverage is more costly. The tradeoff is fewer model-flagged candidates and wider high-price intervals; these flags should therefore be interpreted as review prioritization, not final valuation decisions.
 
-The interval method is lightweight and reproducible. It is not a fully heteroscedastic uncertainty model, so the pipeline writes interval-width distributions by price band and segment, plus q-hat min/median/max audit fields, to make width behavior explicit.
+The interval method is lightweight and reproducible. It is not a fully heteroscedastic uncertainty model, so the pipeline writes interval-width distributions by price band and segment, q-hat min/median/max audit fields, and a residual-variance-by-predicted-bin diagnostic to make width behavior explicit.
 
 ## 11. Explainability
 

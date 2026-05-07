@@ -36,14 +36,14 @@ Recommended label interpretation:
 - `within_expected_range`: no immediate anomaly signal
 - `potentially_over_valued`: observed sale price is above model-supported range
 - `potentially_under_valued`: observed sale price is below model-supported range
-- `insufficient_history`: route to manual review or low-evidence queue
+- Low-support rows: remain scored in the current table and should be interpreted through `evidence_strength`, `slice_risk_level`, and confidence notes.
 
 ## Success Metrics
 
 Product metrics:
 
 - anomaly review queue size
-- abstention rate overall and by segment
+- low-support rate overall and by segment
 - share of high-value homes in abstention
 - reviewer acceptance rate for flagged cases
 - time saved per review batch

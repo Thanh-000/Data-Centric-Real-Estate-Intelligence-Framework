@@ -20,6 +20,7 @@ DEFAULT_TABLE = ROOT / "outputs" / "tables" / "property_intelligence_table.csv"
 DEFAULT_TRUST_SUMMARY = ROOT / "outputs" / "reports" / "trust_summary.md"
 DEFAULT_CONFORMAL_SUMMARY = ROOT / "outputs" / "reports" / "local_conformal_calibration_summary.json"
 DEFAULT_COVERAGE_BY_BAND = ROOT / "outputs" / "tables" / "test_interval_coverage_by_price_band.csv"
+DEFAULT_ERROR_BY_BAND = ROOT / "outputs" / "tables" / "test_error_by_price_band.csv"
 
 LABEL_COLORS = {
     "potentially_over_valued": [222, 82, 70, 220],
@@ -128,6 +129,11 @@ def load_trust_metrics() -> dict[str, object]:
         if not q5.empty:
             payload["q5_interval_width"] = float(q5["average_interval_width"].iloc[0])
             payload["q5_coverage_from_table"] = float(q5["empirical_coverage"].iloc[0])
+    if DEFAULT_ERROR_BY_BAND.exists():
+        errors = pd.read_csv(DEFAULT_ERROR_BY_BAND)
+        q1_error = errors.loc[errors["price_band"].eq("Q1")]
+        if not q1_error.empty:
+            payload["q1_mape"] = float(q1_error["mape"].iloc[0])
     return payload
 
 
@@ -658,13 +664,19 @@ def main() -> None:
         q5_coverage = trust.get("q5_empirical_coverage", trust.get("q5_coverage_from_table"))
         avg_width = trust.get("global_average_interval_width")
         q5_width = trust.get("q5_interval_width")
-        trust_cols = st.columns(4)
+        q1_mape = trust.get("q1_mape")
+        trust_cols = st.columns(5)
         trust_cols[0].metric("Global coverage", f"{global_coverage:.1%}" if isinstance(global_coverage, (int, float)) else "-")
         trust_cols[1].metric("High-price coverage", f"{q5_coverage:.1%}" if isinstance(q5_coverage, (int, float)) else "-")
         trust_cols[2].metric("Average interval", format_currency(avg_width) if isinstance(avg_width, (int, float)) else "-")
         trust_cols[3].metric("High-price interval", format_currency(q5_width) if isinstance(q5_width, (int, float)) else "-")
+        trust_cols[4].metric("Entry-price MAPE", f"{q1_mape:.1f}%" if isinstance(q1_mape, (int, float)) else "-")
         st.markdown(
-            "This dashboard is safe to use as a review queue when coverage checks pass, but it still does not replace appraisal judgment. Wide intervals mean the model is being cautious, especially for expensive properties."
+            "<div class='model-caveat'>Coverage values are empirical diagnostics under this specific chronological, localized, upper-tail-adjusted protocol. They are not theoretical guarantees of standard split conformal prediction.</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            "This dashboard is safe to use as a review queue when coverage checks pass, but it still does not replace appraisal judgment. Wide intervals mean the model is being cautious, especially for expensive properties. Entry-price MAPE highlights that lower-price homes can have higher percentage error even when dollar error is smaller."
         )
         if DEFAULT_TRUST_SUMMARY.exists():
             st.markdown(DEFAULT_TRUST_SUMMARY.read_text(encoding="utf-8"))

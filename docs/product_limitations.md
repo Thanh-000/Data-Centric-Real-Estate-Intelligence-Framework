@@ -40,30 +40,36 @@ Previous reference result:
 - `3061` of approximately `21597` transactions are labeled `insufficient_history`.
 - This is roughly `14%` of the dataset.
 
+Current validated result:
+
+- `0` rows are withheld as `insufficient_history` in the final property table.
+- Low-support evidence is now represented through `support_score`, `evidence_strength`, `slice_risk_level`, and confidence notes.
+
 Product impact:
 
-An abstention mechanism is methodologically responsible, but a 14% abstention rate is large for a data product. In real estate, low-support cases may include sparse neighborhoods, new builds, unusual high-value homes, waterfront homes, or other edge cases that stakeholders care about most.
+An abstention mechanism is methodologically responsible, but the previous 14% abstention rate was large for a data product. In real estate, low-support cases may include sparse neighborhoods, new builds, unusual high-value homes, waterfront homes, or other edge cases that stakeholders care about most.
 
 Current implementation change:
 
 - The runtime property table now uses fallback scoring from the selected final model so low-support rows remain inspectable.
 - Evidence fields and slice-risk fields carry the caution signal instead of removing the row from review.
 - The pipeline writes `outputs/tables/anomaly_threshold_sensitivity.csv` and `outputs/tables/interval_width_*.csv` so threshold and interval-width behavior can be audited.
+- The pipeline writes `outputs/tables/synthetic_anomaly_recall.csv` as a pseudo-recall sanity check because no human-reviewed anomaly labels are available.
 
 Recommended next step:
 
-Treat abstention as a product metric, not only a modeling safeguard. The next iteration should report:
+Treat low-support status as a product metric, not only a modeling safeguard. The next iteration should report:
 
-- abstention rate by zipcode
-- abstention rate by price band
-- abstention rate by segment
-- abstention rate by property age / renovation status
-- overlap between abstention and high-value properties
+- low-support rate by zipcode
+- low-support rate by price band
+- low-support rate by segment
+- low-support rate by property age / renovation status
+- overlap between low-support status and high-value properties
 
 Current implementation:
 
-- `scripts/analyze_abstention.py` generates abstention tables by zipcode, segment, predicted price band, observed price band, grade band, house-age band, evidence strength, and slice risk level.
-- `scripts/evaluate_slices.py` generates slice metrics including abstention rate, anomaly rate, MAE, RMSE, MAPE, interval coverage, and average interval width.
+- `scripts/analyze_abstention.py` generates low-support/legacy abstention tables by zipcode, segment, predicted price band, observed price band, grade band, house-age band, evidence strength, and slice risk level.
+- `scripts/evaluate_slices.py` generates slice metrics including low-support rate, anomaly rate, MAE, RMSE, MAPE, interval coverage, and average interval width.
 
 Remaining remediation paths:
 

@@ -22,10 +22,12 @@ The validated workflow includes:
 - leakage-safe preprocessing through a fitted sklearn pipeline
 - strictly prior-date historical price features for zipcode, geo-cell, and nearby prior-sale context
 - out-of-fold fair-value estimates for training-era anomaly analysis
-- validation-holdout conformal calibration before forward test-era evaluation
-- default conformal alpha of 0.10, targeting 90% nominal coverage on the validation-calibrated holdout workflow
+- validation-holdout residual-quantile calibration before forward test-era evaluation
+- default alpha of 0.10, targeting 90% empirical coverage on the validation-calibrated holdout workflow
 - upper-tail interval correction for the highest predicted price bands, because high-price properties have wider and less stable residuals
 - runtime feature importance and SHAP summary outputs
+
+Coverage values are empirical diagnostics under this chronological, localized, upper-tail-adjusted protocol. They should not be presented as theoretical guarantees of standard split conformal prediction.
 
 ## Runtime Model Artifacts
 
