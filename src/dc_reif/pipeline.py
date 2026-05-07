@@ -36,6 +36,23 @@ from dc_reif.valuation_core import chronological_split, evaluate_model_suite, tr
 LOGGER = get_logger(__name__)
 
 
+def _model_comparison_markdown(dataframe: pd.DataFrame) -> list[str]:
+    if dataframe.empty:
+        return []
+    rows = [
+        "",
+        "## Model Baseline Comparison",
+        "",
+        "| Model | Test RMSE | Test MAE | Test MAPE | Test R2 |",
+        "|---|---:|---:|---:|---:|",
+    ]
+    for row in dataframe.sort_values("test_rmse").itertuples(index=False):
+        rows.append(
+            f"| {str(row.model_name)} | ${float(row.test_rmse):,.0f} | ${float(row.test_mae):,.0f} | {float(row.test_mape):.2f}% | {float(row.test_r2):.3f} |"
+        )
+    return rows
+
+
 def _coverage_by_group(dataframe: pd.DataFrame, group_column: str) -> pd.DataFrame:
     rows: list[dict[str, object]] = []
     scored = dataframe.loc[dataframe["fair_value_hat"].notna()].copy()
@@ -247,6 +264,10 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
         ignore_index=True,
     ).sort_values("validation_rmse")
     save_dataframe(model_comparison, config.paths.tables_dir / "model_baseline_comparison.csv")
+    LOGGER.info(
+        "Model comparison complete: %s",
+        ", ".join(model_comparison["model_name"].astype(str).tolist()),
+    )
     save_dataframe(valuation.selection_summary, config.paths.tables_dir / "xgboost_selection_grid.csv")
     save_json(
         {
@@ -434,6 +455,7 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
         "",
         "This system performs Pricing Anomaly Detection on realized sale prices and should not be interpreted as a listing-price decision rule.",
     ]
+    summary_lines.extend(_model_comparison_markdown(model_comparison))
     summary_report = write_summary_report(summary_lines, config.paths.reports_dir / "pipeline_summary.md")
     trust_summary = write_trust_summary(
         valuation_metrics=valuation.valuation_metrics,
@@ -461,6 +483,7 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
         "segmentation_selection_grid": str(config.paths.tables_dir / "segmentation_selection_grid.csv"),
         "segmentation_selection_summary": str(config.paths.reports_dir / "segmentation_selection_summary.json"),
         "local_conformal_summary": str(config.paths.reports_dir / "local_conformal_calibration_summary.json"),
+        "baseline_models": "median_baseline, linear_regression, random_forest",
         "model_baseline_comparison": str(config.paths.tables_dir / "model_baseline_comparison.csv"),
         "anomaly_threshold_sensitivity": str(config.paths.tables_dir / "anomaly_threshold_sensitivity.csv"),
         "property_intelligence": str(config.paths.tables_dir / "property_intelligence_table.csv"),

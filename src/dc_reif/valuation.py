@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -22,6 +23,7 @@ except Exception:  # pragma: no cover
 
 
 OFFICIAL_MODEL_NAME = "xgboost"
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -344,6 +346,7 @@ def evaluate_model_suite(
     evaluation_summary: dict[str, dict[str, float]] = {}
 
     for model_name in model_names:
+        LOGGER.info("Fitting baseline model: %s", model_name)
         validation_pipeline = _fit_pipeline(
             train_df,
             feature_columns=feature_columns,
@@ -373,6 +376,13 @@ def evaluate_model_suite(
         )
         test_predictions_by_model[model_name] = test_pred
         test_metrics = regression_metrics(test_df[target_column], test_pred)
+        LOGGER.info(
+            "Baseline model complete: %s | validation RMSE %.2f | test RMSE %.2f | test MAPE %.2f%%",
+            model_name,
+            validation_metrics["rmse"],
+            test_metrics["rmse"],
+            test_metrics["mape"],
+        )
 
         evaluation_summary[model_name] = {
             **{f"validation_{metric}": value for metric, value in validation_metrics.items()},
