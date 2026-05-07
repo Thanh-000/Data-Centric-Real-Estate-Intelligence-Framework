@@ -65,6 +65,12 @@ To include the test suite in the same run:
 python scripts/quickstart.py --install --with-tests
 ```
 
+Optional experiment run with Optuna tuning and local MLflow tracking:
+
+```bash
+python scripts/quickstart.py --install --optuna-trials 25 --enable-mlflow
+```
+
 Manual dataset download:
 
 ```bash
@@ -88,6 +94,18 @@ make run
 make analyze-abstention
 make evaluate-slices
 make test
+```
+
+Optional model tuning:
+
+```bash
+python scripts/run_pipeline.py --optuna-trials 25
+```
+
+Optional local experiment tracking:
+
+```bash
+python scripts/run_pipeline.py --enable-mlflow true
 ```
 
 Open the dashboard after running the pipeline:
@@ -166,6 +184,7 @@ Core pipeline outputs:
 - `data/artifacts/*.joblib`
 - `outputs/tables/valuation_metrics.csv`
 - `outputs/tables/model_baseline_comparison.csv`
+- `outputs/tables/xgboost_selection_grid.csv`
 - `outputs/tables/cluster_profiles.csv`
 - `outputs/tables/feature_importance.csv`
 - `outputs/tables/property_intelligence_table.csv`
@@ -178,6 +197,7 @@ Core pipeline outputs:
 - `outputs/reports/pipeline_summary.md`
 - `outputs/reports/*_summary.json`
 - `outputs/figures/*.png`
+- `outputs/mlruns/` when MLflow tracking is enabled
 
 ## Methodological Safeguards
 
@@ -187,6 +207,7 @@ Core pipeline outputs:
 - Out-of-fold fair values are used for calibration and evaluation; fallback scoring keeps the runtime property table reviewable for low-support rows.
 - The anomaly layer is framed for sale-price valuation gaps, not for listing-side decisions.
 - The data download workflow preserves checksum verification and graceful fallback behavior.
+- Optuna and MLflow are opt-in so the default quickstart stays simple, while experiment runs remain reproducible.
 
 Detailed methodology is summarized in `docs/methodology.md`.
 

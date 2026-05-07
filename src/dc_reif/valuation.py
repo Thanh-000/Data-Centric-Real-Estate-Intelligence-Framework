@@ -14,6 +14,7 @@ from sklearn.pipeline import Pipeline
 
 from dc_reif.preprocessing import build_preprocessor
 from dc_reif.splitting import make_time_series_cv
+from dc_reif.utils import get_logger
 
 try:  # pragma: no cover - dependency validated in runtime/tests
     from xgboost import XGBRegressor
@@ -22,6 +23,7 @@ except Exception:  # pragma: no cover
 
 
 OFFICIAL_MODEL_NAME = "xgboost"
+LOGGER = get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -284,6 +286,86 @@ def _official_xgboost_search_space() -> list[OfficialModelConfig]:
     ]
 
 
+def _optuna_xgboost_configs(
+    train_df: pd.DataFrame,
+    validation_df: pd.DataFrame,
+    feature_columns: list[str],
+    target_column: str,
+    random_state: int,
+    n_trials: int,
+) -> list[OfficialModelConfig]:
+    if n_trials <= 0:
+        return []
+    try:
+        import optuna
+    except Exception as exc:  # pragma: no cover - optional dependency path
+        LOGGER.warning("Optuna tuning requested but unavailable: %s", exc)
+        return []
+
+    def objective(trial) -> float:
+        target_strategy = trial.suggest_categorical("target_strategy", ["raw", "log1p"])
+        high_price_weight = trial.suggest_float("high_price_weight", 1.0, 1.6)
+        estimator_params = {
+            "n_estimators": trial.suggest_int("n_estimators", 250, 750, step=50),
+            "learning_rate": trial.suggest_float("learning_rate", 0.02, 0.08, log=True),
+            "max_depth": trial.suggest_int("max_depth", 3, 7),
+            "min_child_weight": trial.suggest_int("min_child_weight", 1, 6),
+            "subsample": trial.suggest_float("subsample", 0.75, 1.0),
+            "colsample_bytree": trial.suggest_float("colsample_bytree", 0.75, 1.0),
+            "reg_lambda": trial.suggest_float("reg_lambda", 0.5, 3.0),
+            "reg_alpha": trial.suggest_float("reg_alpha", 0.0, 0.3),
+        }
+        sample_weight = _high_price_weights(
+            train_df,
+            target_column=target_column,
+            high_price_weight=high_price_weight,
+            high_price_quantile=0.8,
+        )
+        pipeline = _fit_pipeline(
+            train_df=train_df,
+            feature_columns=feature_columns,
+            target_column=target_column,
+            model_name=OFFICIAL_MODEL_NAME,
+            random_state=random_state,
+            estimator_params=estimator_params,
+            target_strategy=target_strategy,
+            sample_weight=sample_weight,
+        )
+        prediction = pd.Series(
+            _predict_pipeline(pipeline, validation_df, feature_columns=feature_columns, target_strategy=target_strategy),
+            index=validation_df.index,
+        )
+        metrics = regression_metrics(validation_df[target_column], prediction)
+        upper_tail = _upper_tail_metrics(validation_df[target_column], prediction)
+        return _selection_score(metrics, upper_tail)
+
+    sampler = optuna.samplers.TPESampler(seed=random_state)
+    study = optuna.create_study(direction="minimize", sampler=sampler)
+    study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
+    best = study.best_trial
+    params = dict(best.params)
+    target_strategy = str(params.pop("target_strategy"))
+    high_price_weight = float(params.pop("high_price_weight"))
+    estimator_params = {
+        "n_estimators": int(params["n_estimators"]),
+        "learning_rate": float(params["learning_rate"]),
+        "max_depth": int(params["max_depth"]),
+        "min_child_weight": int(params["min_child_weight"]),
+        "subsample": float(params["subsample"]),
+        "colsample_bytree": float(params["colsample_bytree"]),
+        "reg_lambda": float(params["reg_lambda"]),
+        "reg_alpha": float(params["reg_alpha"]),
+    }
+    return [
+        OfficialModelConfig(
+            name=f"xgb_optuna_{n_trials}_trials",
+            estimator_params=estimator_params,
+            target_strategy=target_strategy,
+            high_price_weight=high_price_weight,
+        )
+    ]
+
+
 def generate_oof_predictions(
     train_validation_df: pd.DataFrame,
     feature_columns: list[str],
@@ -459,6 +541,7 @@ def train_and_select_model(
     target_column: str,
     n_splits: int,
     random_state: int,
+    optuna_trials: int = 0,
 ) -> ValuationArtifacts:
     if not official_model_available():
         raise ImportError("xgboost is required for the official valuation workflow.")
@@ -466,6 +549,16 @@ def train_and_select_model(
     search_rows: list[dict[str, Any]] = []
     validation_predictions: dict[str, pd.Series] = {}
     search_space = _official_xgboost_search_space()
+    search_space.extend(
+        _optuna_xgboost_configs(
+            train_df=train_df,
+            validation_df=validation_df,
+            feature_columns=feature_columns,
+            target_column=target_column,
+            random_state=random_state,
+            n_trials=optuna_trials,
+        )
+    )
 
     for config_option in search_space:
         sample_weight = _high_price_weights(

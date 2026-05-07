@@ -77,6 +77,9 @@ class ProjectConfig:
     validation_end_date: str | None = "2015-03-31"
     n_splits: int = 5
     alpha: float = 0.1
+    optuna_trials: int = 0
+    enable_mlflow: bool = False
+    mlflow_tracking_uri: str | None = None
     target_column: str = "price"
     date_column: str = "date"
     id_column: str = "id"
@@ -121,6 +124,9 @@ class ProjectConfig:
             force_download=parse_bool(os.getenv("FORCE_DOWNLOAD"), default=False),
             random_state=int(os.getenv("RANDOM_STATE", 42)),
             alpha=float(os.getenv("PREDICTION_ALPHA", 0.1)),
+            optuna_trials=int(os.getenv("OPTUNA_TRIALS", 0)),
+            enable_mlflow=parse_bool(os.getenv("ENABLE_MLFLOW"), default=False),
+            mlflow_tracking_uri=os.getenv("MLFLOW_TRACKING_URI"),
         )
 
     @classmethod
@@ -136,6 +142,9 @@ class ProjectConfig:
         parser.add_argument("--alpha", type=float, default=os.getenv("PREDICTION_ALPHA"))
         parser.add_argument("--train-end-date", default=os.getenv("TRAIN_END_DATE"))
         parser.add_argument("--validation-end-date", default=os.getenv("VALIDATION_END_DATE"))
+        parser.add_argument("--optuna-trials", type=int, default=os.getenv("OPTUNA_TRIALS"))
+        parser.add_argument("--enable-mlflow", default=os.getenv("ENABLE_MLFLOW"))
+        parser.add_argument("--mlflow-tracking-uri", default=os.getenv("MLFLOW_TRACKING_URI"))
         args = parser.parse_args(argv)
 
         config = cls.default()
@@ -163,4 +172,10 @@ class ProjectConfig:
             config.train_end_date = args.train_end_date or None
         if args.validation_end_date is not None:
             config.validation_end_date = args.validation_end_date or None
+        if args.optuna_trials is not None:
+            config.optuna_trials = int(args.optuna_trials)
+        if args.enable_mlflow is not None:
+            config.enable_mlflow = parse_bool(args.enable_mlflow, default=config.enable_mlflow)
+        if args.mlflow_tracking_uri:
+            config.mlflow_tracking_uri = args.mlflow_tracking_uri
         return config

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -13,7 +14,8 @@ def get_logger(name: str = "dc_reif") -> logging.Logger:
     if logger.handlers:
         return logger
 
-    logger.setLevel(logging.INFO)
+    level_name = os.getenv("DC_REIF_LOG_LEVEL", "INFO").upper()
+    logger.setLevel(getattr(logging, level_name, logging.INFO))
     handler = logging.StreamHandler()
     formatter = logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s")
     handler.setFormatter(formatter)
@@ -49,4 +51,3 @@ def format_float(value: float | None, digits: int = 4) -> float | None:
     if value is None:
         return None
     return round(float(value), digits)
-

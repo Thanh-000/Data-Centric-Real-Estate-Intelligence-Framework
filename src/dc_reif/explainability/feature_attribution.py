@@ -103,6 +103,61 @@ def shap_explanations(
     return output_path, local_map
 
 
+def shap_dependence_plots(
+    model_pipeline,
+    dataset: pd.DataFrame,
+    feature_columns: list[str],
+    importance_df: pd.DataFrame,
+    output_dir: Path,
+    top_n: int = 3,
+    sample_size: int = 500,
+) -> dict[str, Path]:
+    try:
+        import shap
+    except Exception as exc:  # pragma: no cover
+        LOGGER.warning("SHAP dependence plots skipped: %s", exc)
+        return {}
+
+    if not hasattr(model_pipeline.named_steps["model"], "feature_importances_"):
+        return {}
+
+    sample_df = dataset.copy()
+    if len(sample_df) > sample_size:
+        sample_df = sample_df.sample(sample_size, random_state=42)
+
+    preprocessor = model_pipeline.named_steps["preprocessor"]
+    model = model_pipeline.named_steps["model"]
+    transformed = preprocessor.transform(sample_df[feature_columns])
+    if hasattr(transformed, "toarray"):
+        transformed = transformed.toarray()
+
+    names = _feature_names(model_pipeline)
+    name_to_index = {name: index for index, name in enumerate(names)}
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer.shap_values(transformed)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    outputs: dict[str, Path] = {}
+    for feature in importance_df["feature"].head(top_n):
+        if feature not in name_to_index:
+            continue
+        safe_name = "".join(character if character.isalnum() or character in {"_", "-"} else "_" for character in feature)
+        path = output_dir / f"shap_dependence_{safe_name}.png"
+        plt.figure()
+        shap.dependence_plot(
+            name_to_index[feature],
+            shap_values,
+            transformed,
+            feature_names=names,
+            show=False,
+        )
+        plt.tight_layout()
+        plt.savefig(path, dpi=150, bbox_inches="tight")
+        plt.close()
+        outputs[f"shap_dependence_{safe_name}"] = path
+    return outputs
+
+
 def build_top_driver_map(
     dataframe: pd.DataFrame,
     id_column: str,

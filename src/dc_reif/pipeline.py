@@ -14,10 +14,12 @@ from dc_reif.explainability import (
     build_top_driver_map,
     global_feature_importance,
     plot_feature_importance,
+    shap_dependence_plots,
     shap_explanations,
 )
 from dc_reif.feature_store import assert_no_target_leakage, build_feature_matrix
 from dc_reif.governance import clean_king_county_data, load_raw_data, validate_schema, validation_report_frame
+from dc_reif.experiment_tracking import log_pipeline_run
 from dc_reif.market_representation import assign_submarket_segments, fit_submarket_clustering
 from dc_reif.product_analytics import interval_width_summary, threshold_sensitivity, write_analysis_tables
 from dc_reif.property_ledger import build_property_ledger
@@ -160,6 +162,7 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
         target_column=config.target_column,
         n_splits=config.n_splits,
         random_state=config.random_state,
+        optuna_trials=config.optuna_trials,
     )
     save_dataframe(valuation.valuation_metrics, config.paths.tables_dir / "valuation_metrics.csv")
     baseline_suite = evaluate_model_suite(
@@ -273,6 +276,13 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
         local_sample_ids=explain_sample["property_id"].astype(str).tolist(),
         id_column=config.id_column,
     )
+    shap_dependence_paths = shap_dependence_plots(
+        valuation.model_pipeline,
+        dataset=modeling_df,
+        feature_columns=predictive_features,
+        importance_df=importance_df,
+        output_dir=config.paths.figures_dir,
+    )
     property_frame["top_drivers"] = build_top_driver_map(
         modeling_df,
         id_column=config.id_column,
@@ -378,7 +388,23 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
     }
     if shap_path:
         outputs["shap_summary"] = str(shap_path)
+    outputs.update({name: str(path) for name, path in shap_dependence_paths.items()})
     outputs.update({name: str(path) for name, path in eda_figures.items()})
     outputs.update({name: str(path) for name, path in residual_figures.items()})
+    mlflow_run_id = log_pipeline_run(
+        config=config,
+        outputs=outputs,
+        metrics=valuation.valuation_metrics.iloc[0].to_dict(),
+        params={
+            "selected_model": valuation.model_name,
+            "target_strategy": valuation.target_strategy,
+            "high_price_weight": valuation.high_price_weight,
+            "optuna_trials": config.optuna_trials,
+            "segmentation_method": cluster_artifacts.segmentation_method,
+            "alpha": config.alpha,
+        },
+    )
+    if mlflow_run_id:
+        outputs["mlflow_run_id"] = mlflow_run_id
     LOGGER.info("Pipeline complete.")
     return outputs

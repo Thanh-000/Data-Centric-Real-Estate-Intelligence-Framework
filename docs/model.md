@@ -18,11 +18,14 @@ The validated workflow includes:
 - default King County date cutoffs: train through 2014-12-31, validation through 2015-03-31, test after 2015-03-31
 - validation-driven XGBoost configuration selection
 - log-target XGBoost candidates for heteroscedastic sale-price behavior
+- optional Optuna tuning with `--optuna-trials`
 - median, linear regression, and random forest baseline comparison
 - leakage-safe preprocessing through a fitted sklearn pipeline
 - out-of-fold fair-value estimates for training-era anomaly analysis
 - forward holdout predictions for test-era evaluation
 - runtime feature importance and optional SHAP outputs
+- SHAP summary and top-feature dependence plots when SHAP can evaluate the fitted model
+- optional MLflow local tracking with `--enable-mlflow true`
 
 ## Runtime Model Artifacts
 
@@ -44,9 +47,29 @@ the fitted artifacts are generated under:
 - `data/artifacts/submarket_clustering.joblib`
 - `outputs/tables/valuation_metrics.csv`
 - `outputs/tables/model_baseline_comparison.csv`
+- `outputs/tables/xgboost_selection_grid.csv`
 - `outputs/reports/xgboost_selection_summary.json`
+- `outputs/figures/shap_summary.png`
+- `outputs/figures/shap_dependence_*.png`
+- `outputs/mlruns/` when MLflow is enabled
 
 These files are intentionally ignored by Git. They can be regenerated from source, configuration, and the downloaded dataset.
+
+## Optional Experiment Controls
+
+The default workflow uses a fixed CPU-friendly search grid. For deeper model tuning:
+
+```bash
+python scripts/run_pipeline.py --optuna-trials 25
+```
+
+For local experiment tracking:
+
+```bash
+python scripts/run_pipeline.py --enable-mlflow true
+```
+
+MLflow logs run parameters, validation/test metrics, and generated output artifacts under `outputs/mlruns/` unless `MLFLOW_TRACKING_URI` or `--mlflow-tracking-uri` is provided.
 
 ## Why Model Artifacts Are Not Committed
 

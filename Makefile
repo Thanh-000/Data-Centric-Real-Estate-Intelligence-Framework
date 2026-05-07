@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: install quickstart download run analyze-abstention evaluate-slices dashboard notebook test clean
+.PHONY: install quickstart tune track download run analyze-abstention evaluate-slices dashboard notebook test clean
 
 install:
 	$(PYTHON) -m pip install --upgrade pip
@@ -8,6 +8,12 @@ install:
 
 quickstart:
 	$(PYTHON) scripts/quickstart.py --install
+
+tune:
+	$(PYTHON) scripts/run_pipeline.py --optuna-trials 25
+
+track:
+	$(PYTHON) scripts/run_pipeline.py --enable-mlflow true
 
 download:
 	$(PYTHON) scripts/download_data.py
