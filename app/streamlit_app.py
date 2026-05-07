@@ -36,7 +36,6 @@ ACTIONABLE_LABELS = ["potentially_over_valued", "potentially_under_valued"]
 FILTER_LABELS = {
     "anomaly_flag": "Review outcome",
     "zipcode": "Zipcode",
-    "segment_label": "Market segment",
     "observed_price_band": "Price band",
     "evidence_strength": "Evidence strength",
     "slice_risk_level": "Slice risk",
@@ -66,7 +65,6 @@ QUEUE_COLUMN_NAMES = {
 
 SLICE_COLUMN_NAMES = {
     "zipcode": "Zipcode",
-    "segment_label": "Market segment",
     "observed_price_band": "Price band",
     "evidence_strength": "Evidence strength",
     "slice_risk_level": "Slice risk",
@@ -77,6 +75,20 @@ SLICE_COLUMN_NAMES = {
     "anomaly_rate": "Review flag rate",
     "low_support_rate": "Low-support rate",
 }
+
+SIDEBAR_FILTER_COLUMNS = [
+    "zipcode",
+    "observed_price_band",
+    "evidence_strength",
+    "slice_risk_level",
+]
+
+MARKET_SLICE_COLUMNS = [
+    "zipcode",
+    "observed_price_band",
+    "evidence_strength",
+    "slice_risk_level",
+]
 
 MAP_FOCUS = {
     "Anomalies only": ACTIONABLE_LABELS,
@@ -178,8 +190,6 @@ def display_value(column: str, value: str) -> str:
         return value.replace("_", " ").title()
     if column == "slice_risk_level":
         return value.replace("_", " ").title()
-    if column == "segment_label":
-        return value.replace("segment_zipcode_", "Zipcode ")
     return value
 
 
@@ -478,11 +488,8 @@ def main() -> None:
     filtered = dataframe.copy()
     filtered, selected_review_labels = sidebar_filter(filtered, "anomaly_flag", FILTER_LABELS["anomaly_flag"])
     selected_filters["anomaly_flag"] = selected_review_labels
-    filtered, selected_filters["zipcode"] = sidebar_filter(filtered, "zipcode", FILTER_LABELS["zipcode"])
-    filtered, selected_filters["segment_label"] = sidebar_filter(filtered, "segment_label", FILTER_LABELS["segment_label"])
-    filtered, selected_filters["observed_price_band"] = sidebar_filter(filtered, "observed_price_band", FILTER_LABELS["observed_price_band"])
-    filtered, selected_filters["evidence_strength"] = sidebar_filter(filtered, "evidence_strength", FILTER_LABELS["evidence_strength"])
-    filtered, selected_filters["slice_risk_level"] = sidebar_filter(filtered, "slice_risk_level", FILTER_LABELS["slice_risk_level"])
+    for column in SIDEBAR_FILTER_COLUMNS:
+        filtered, selected_filters[column] = sidebar_filter(filtered, column, FILTER_LABELS[column])
     context_filters = {column: values for column, values in selected_filters.items() if column != "anomaly_flag"}
     slice_context = apply_selected_filters(dataframe, context_filters)
 
@@ -559,7 +566,7 @@ def main() -> None:
 
         label_counts = slice_frame["anomaly_flag"].map(LABEL_NAMES).fillna(slice_frame["anomaly_flag"]).value_counts().rename_axis("label").reset_index(name="transactions")
         st.bar_chart(label_counts.set_index("label"))
-        for column in ["zipcode", "segment_label", "observed_price_band", "evidence_strength", "slice_risk_level"]:
+        for column in MARKET_SLICE_COLUMNS:
             if column in slice_frame.columns:
                 st.subheader(display_column(column))
                 st.dataframe(

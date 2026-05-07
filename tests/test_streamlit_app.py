@@ -1,6 +1,9 @@
 import pandas as pd
 
 from app.streamlit_app import (
+    FILTER_LABELS,
+    MARKET_SLICE_COLUMNS,
+    SIDEBAR_FILTER_COLUMNS,
     build_review_queue,
     build_slice_summary,
     map_excluded_labels,
@@ -47,6 +50,14 @@ def test_map_focus_is_authoritative_when_review_labels_include_within_range():
     assert map_labels_for_focus("Anomalies + low support", selected) == ["insufficient_history"]
     assert map_excluded_labels("Anomalies + low support", selected) == ["within_expected_range"]
     assert map_labels_for_focus("All transactions", selected) == ["insufficient_history", "within_expected_range"]
+
+
+def test_dashboard_hides_technical_zipcode_segment_from_beginner_filters():
+    assert "segment_label" not in FILTER_LABELS
+    assert "segment_label" not in SIDEBAR_FILTER_COLUMNS
+    assert "segment_label" not in MARKET_SLICE_COLUMNS
+    assert "zipcode" in SIDEBAR_FILTER_COLUMNS
+    assert "zipcode" in MARKET_SLICE_COLUMNS
 
 
 def test_prepare_map_frame_filters_to_focus_labels_and_limits_rows():
