@@ -39,7 +39,7 @@
 \maketitle
 
 \begin{abstract}
-This report presents the Data-Centric Real Estate Intelligence Framework (DC-REIF), a reproducible decision-support system for model-assisted real estate pricing anomaly detection in King County, Washington. The project follows the Team Data Science Process: business understanding, data gathering and preprocessing, exploratory data analysis, model implementation and evaluation, and data storytelling with recommendations. The current local run uses 21,597 cleaned transactions from the King County house sales dataset and implements a leakage-aware chronological modeling workflow. The selected valuation model is XGBoost, evaluated against median, linear regression, and random forest baselines. On the held-out chronological test set, the system achieves an $R^2$ of 0.900, RMSE of \$120,357, MAE of \$67,590, and MAPE of 12.11\%. On the same held-out test protocol, the localized interval layer achieves 96.1\% empirical coverage overall and 90.4\% coverage in the highest observed price band. These coverage values are diagnostics under the implemented protocol, not theoretical or regulatory guarantees. On the full scored portfolio, the decision layer identifies 628 of 21,597 transactions (2.91\%) as review leads, including 431 potentially over-valued and 197 potentially under-valued sales. The system is positioned as analyst triage support, not as an automated appraisal authority.
+This report presents the Data-Centric Real Estate Intelligence Framework (DC-REIF), a reproducible decision-support system for model-assisted real estate pricing anomaly detection in King County, Washington. The project follows the Team Data Science Process: business understanding, data gathering and preprocessing, exploratory data analysis, model implementation and evaluation, and data storytelling with recommendations. The current local run uses 21,597 cleaned transactions from the King County house sales dataset and implements a leakage-aware chronological modeling workflow. The selected point model is XGBoost, evaluated against median, linear regression, and random forest baselines. On the held-out chronological test set, the system achieves an $R^2$ of 0.900, RMSE of \$120,357, MAE of \$67,590, and MAPE of 12.11\%. On the same held-out test protocol, the selected localized conformal interval layer achieves 96.1\% empirical coverage overall and 90.4\% coverage in the highest observed price band. A quantile XGBoost interval alternative is also tested; it produces narrower average intervals but does not meet the coverage gates, so it is not used for the final decision layer. On the full scored portfolio, the decision layer identifies 628 of 21,597 transactions (2.91\%) as review leads, including 431 potentially over-valued and 197 potentially under-valued sales. The system is positioned as analyst triage support, not as an automated appraisal authority.
 \end{abstract}
 
 \newpage
@@ -140,10 +140,12 @@ Cleaned transactions & 21,597\\
 Held-out test rows & 2,875\\
 Market segments & 53 zipcode segments\\
 Selected model & XGBoost\\
+Selected interval method & Local conformal\\
 Held-out test MAPE & 12.11\%\\
 Held-out test $R^2$ & 0.900\\
 Held-out empirical coverage & 96.1\%\\
 Held-out observed-Q5 empirical coverage & 90.4\%\\
+Quantile XGBoost empirical coverage & 76.7\%\\
 Full-portfolio model-flagged cases & 628\\
 Full-portfolio flag rate & 2.91\%\\
 \bottomrule
@@ -447,6 +449,8 @@ All model candidates use the same train-fitted preprocessing contract. Numeric f
 
 The current run selected the raw-target XGBoost configuration. Log-target XGBoost candidates were evaluated to address heteroscedasticity, but the validation results favored the raw target. Model selection used validation RMSE as the primary criterion, with Q5 MAE and Q5 signed error checked as secondary diagnostics to avoid selecting a model that performed well on average but failed in the highest price band. This simplified policy is easier to audit than treating the project as a broad hyperparameter optimization exercise.
 
+Because the residual diagnostics show heteroscedasticity, the final pipeline also evaluates a quantile XGBoost interval candidate. This candidate trains two additional XGBoost models on the same chronological training split and the same train-fitted preprocessing contract: a 5th-percentile model for the lower bound and a 95th-percentile model for the upper bound. These quantile bounds are direct model outputs rather than post-hoc conformal residual adjustments. The point estimate remains the selected XGBoost regression model; the quantile models are used only to test whether direct conditional intervals can improve the sharpness-versus-coverage tradeoff.
+
 \begin{table}[H]
 \centering
 \caption{Shared preprocessing and model-selection policy}
@@ -460,6 +464,7 @@ Categorical missing values & Most-frequent imputation fitted on training data on
 Categorical encoding & One-hot encoding with unknown categories ignored at transform time.\\
 Numeric scaling & Used for linear regression and median baseline; not used for tree models.\\
 Target candidates & Raw target and log-transformed XGBoost variants.\\
+Interval candidates & Local conformal residual intervals and direct p05/p95 XGBoost quantile intervals.\\
 Selection objective & Validation RMSE primary; Q5 MAE and Q5 signed error used as upper-tail diagnostics.\\
 \bottomrule
 \end{tabular}
@@ -546,6 +551,25 @@ High-price Q5 average interval width & \$847,102\\
 \end{tabular}
 \end{table}
 
+\subsection{Quantile Regression Interval Comparison}
+To test whether direct heteroscedastic interval modeling could produce sharper review bounds, the pipeline trains a quantile XGBoost alternative using p05 and p95 targets. The decision rule for this candidate is the same as the conformal rule: a sale is potentially over-valued when the observed price exceeds the upper bound and potentially under-valued when it falls below the lower bound. The candidate is accepted for the decision layer only if it reaches at least 90\% overall held-out coverage, at least 88\% Q5 held-out coverage, lower average interval width than conformal, and at least 50\% synthetic recall under a 30\% price shock.
+
+\begin{table}[H]
+\centering
+\caption{Interval method comparison on held-out test and synthetic checks}
+\label{tab:interval_comparison}
+\begin{tabular}{lrrrrr}
+\toprule
+\textbf{Method} & \textbf{Avg. width} & \textbf{Coverage} & \textbf{Q1 cov.} & \textbf{Q5 cov.} & \textbf{Recall 30\%}\\
+\midrule
+Local conformal & \$429,417 & 96.1\% & 97.6\% & 90.4\% & 27.5\%\\
+Quantile XGBoost & \$236,536 & 76.7\% & 78.6\% & 64.3\% & 84.0\%\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table \ref{tab:interval_comparison} shows the tradeoff clearly. Quantile XGBoost is much sharper and reacts better to synthetic price shocks, but it under-covers the held-out test set, especially in Q5. Therefore, the final decision layer keeps the local conformal interval method. This is a conservative choice: it preserves empirical coverage for review triage even though it produces wider intervals and lower synthetic recall.
+
 \subsection{Held-Out Coverage by Price Band}
 The interval layer is localized and upper-tail-adjusted by predicted-price decile, whereas the summary tables below report held-out coverage by observed-price quintile. These are related but not identical views: predicted deciles define how intervals are constructed, while observed quintiles show how well the resulting intervals cover realized market price bands. Table \ref{tab:coverage_band} reports held-out test performance only. The five observed-price bands contain 575 records each, for a total test population of 2,875 rows. Lower and mid-price bands are covered above the 90\% target. The highest observed price band remains the most difficult slice, but its current 90.4\% empirical coverage meets the target after upper-tail correction.
 
@@ -605,7 +629,7 @@ Q5 & 575 & \$152,000 & \$236,823 & 13.02\%\\
 Figure \ref{fig:error_by_price_band} separates dollar error from percentage error. Q5 has the largest dollar MAE because expensive properties are harder to price in absolute terms. Q1 has the highest MAPE because the denominator is smaller, so a moderate dollar error can become a large percentage miss. This dual pattern is why the dashboard trust panel reports both high-price interval behavior and entry-price MAPE.
 
 \subsection{Anomaly Decision Layer}
-The decision layer produces a review queue rather than a final appraisal decision. This table is computed on the full scored portfolio of 21,597 transactions, not only on the held-out test set. In the current run, 20,969 transactions are within the expected range and 628 are model-flagged for review, a portfolio flag rate of 2.91\%. Among flagged cases, 431 are potentially over-valued and 197 are potentially under-valued. No current transaction is withheld as \texttt{insufficient\_history} in the final property intelligence table because low-support rows remain inspectable through \texttt{evidence\_strength} and \texttt{slice\_risk\_level}.
+The decision layer produces a review queue rather than a final appraisal decision. After comparing conformal and quantile intervals, the current run uses the local conformal bounds because the quantile alternative does not meet the held-out coverage gates. This table is computed on the full scored portfolio of 21,597 transactions, not only on the held-out test set. In the current run, 20,969 transactions are within the expected range and 628 are model-flagged for review, a portfolio flag rate of 2.91\%. Among flagged cases, 431 are potentially over-valued and 197 are potentially under-valued. No current transaction is withheld as \texttt{insufficient\_history} in the final property intelligence table because low-support rows remain inspectable through \texttt{evidence\_strength} and \texttt{slice\_risk\_level}.
 
 Operationally, local support is summarized by a support score. Segment support is capped at $segment\_support\_n/200$, predicted-price-band support is capped at $price\_band\_support\_n/300$, and \texttt{support\_score} is the average of the available capped components. The field \texttt{slice\_risk\_level} is \texttt{high} when $\hat{q}_i/\hat{q}_{global}\geq 1.20$ or support score is below 0.55, \texttt{medium} when $\hat{q}_i/\hat{q}_{global}\geq 1.05$ or support score is below 0.75, and \texttt{low} otherwise. The field \texttt{evidence\_strength} is \texttt{strong} when $|anomaly\_score|\geq 0.18$ and support score is at least 0.75, \texttt{moderate} when $|anomaly\_score|\geq 0.10$, and \texttt{limited} otherwise, where $anomaly\_score=(y_i-\hat{y}_i)/interval\_width_i$. These fields do not change the interval bounds in the current run; they affect dashboard filtering, exported confidence notes, and reviewer interpretation.
 
@@ -660,25 +684,22 @@ For a threshold $\tau$, a transaction is counted as over-valued when $g_i \geq \
 \end{table}
 
 \subsection{Synthetic Anomaly Recall Sanity Check}
-The project has no human-reviewed anomaly ground truth, so true precision and recall cannot be computed. To provide a lightweight proxy, the repository includes \path{scripts/evaluate_synthetic_anomalies.py}. The script samples transactions originally labeled within range, injects artificial sale-price shocks, and checks whether the existing interval decision rule flags the manipulated transactions in the expected direction. This is not a substitute for domain-labeled validation, but it tests whether the decision layer reacts to controlled price distortions.
+The project has no human-reviewed anomaly ground truth, so true precision and recall cannot be computed. To provide a lightweight proxy, the repository includes \path{scripts/evaluate_synthetic_anomalies.py}. The script samples transactions that are inside each method's interval, injects artificial sale-price shocks, and checks whether the interval decision rule flags the manipulated transactions in the expected direction. This is not a substitute for domain-labeled validation, but it tests whether each interval method reacts to controlled price distortions.
 
 \begin{table}[H]
 \centering
-\caption{Synthetic anomaly recall sanity check}
+\caption{Synthetic anomaly recall comparison by interval method}
 \label{tab:synthetic_recall}
 \begin{tabular}{lrrrr}
 \toprule
-\textbf{Scenario} & \textbf{Shock} & \textbf{Sample} & \textbf{Detected} & \textbf{Recall}\\
+\textbf{Method} & \textbf{Shock} & \textbf{Sample} & \textbf{Detected} & \textbf{Recall}\\
 \midrule
-Over-valued shock & 30\% & 100 & 31 & 31.0\%\\
-Under-valued shock & 30\% & 100 & 24 & 24.0\%\\
-Overall & 30\% & 200 & 55 & 27.5\%\\
-Over-valued shock & 40\% & 100 & 56 & 56.0\%\\
-Under-valued shock & 40\% & 100 & 44 & 44.0\%\\
-Overall & 40\% & 200 & 100 & 50.0\%\\
-Over-valued shock & 50\% & 100 & 66 & 66.0\%\\
-Under-valued shock & 50\% & 100 & 70 & 70.0\%\\
-Overall & 50\% & 200 & 136 & 68.0\%\\
+Local conformal & 30\% & 200 & 55 & 27.5\%\\
+Local conformal & 40\% & 200 & 100 & 50.0\%\\
+Local conformal & 50\% & 200 & 136 & 68.0\%\\
+Quantile XGBoost & 30\% & 200 & 168 & 84.0\%\\
+Quantile XGBoost & 40\% & 200 & 177 & 88.5\%\\
+Quantile XGBoost & 50\% & 200 & 188 & 94.0\%\\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -686,11 +707,11 @@ Overall & 50\% & 200 & 136 & 68.0\%\\
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.82\linewidth]{report_synthetic_recall.png}
-\caption{Synthetic recall response under injected price shocks}
+\caption{Conformal synthetic recall response under injected price shocks}
 \label{fig:synthetic_recall}
 \end{figure}
 
-The synthetic recall increases as the injected distortion grows, which is the expected direction. The moderate recall at 30--40\% shocks also confirms that the current interval policy is conservative: it prioritizes avoiding over-confident flags over catching every manipulated case.
+The synthetic recall increases as the injected distortion grows, which is the expected direction. Quantile XGBoost is much more sensitive to injected shocks because its intervals are narrower. However, this higher sensitivity comes with insufficient held-out coverage, so it is not selected for the final decision layer. The conformal policy remains conservative: it prioritizes avoiding over-confident review flags over catching every manipulated case.
 
 \subsection{Human Review Validation Plan}
 The project currently has no expert-labeled ground truth for whether a flagged sale is truly problematic. This means precision, recall, and reviewer trust cannot be claimed from the dataset alone. The correct next validation step is a controlled human-review pilot using the dashboard and exported review queue.
@@ -810,7 +831,7 @@ The highest flagged cases in the current run are primarily over-valued high-pric
 \section{Data Storytelling and Business Recommendations}
 
 \subsection{Main Story}
-The project story is focused: a valuation reviewer should not start by manually screening all 21,597 transactions. DC-REIF uses a leakage-aware valuation model, an empirical uncertainty interval, and a conservative anomaly decision layer to reduce the first-pass review queue to 628 flagged cases. These cases are review leads, not final judgments. The analyst still decides whether each case is valid after comparing it with market evidence and professional appraisal context.
+The project story is focused: a valuation reviewer should not start by manually screening all 21,597 transactions. DC-REIF uses a leakage-aware valuation model, an empirical uncertainty interval, and a conservative anomaly decision layer to reduce the first-pass review queue to 628 flagged cases. The project also tests a sharper quantile XGBoost interval alternative, but keeps conformal intervals because coverage is the higher-priority trust requirement for this review workflow. The flagged cases are review leads, not final judgments. The analyst still decides whether each case is valid after comparing it with market evidence and professional appraisal context.
 
 \subsection{Insights}
 \begin{enumerate}
@@ -819,6 +840,7 @@ The project story is focused: a valuation reviewer should not start by manually 
     \item \textbf{The high-price segment is the key caution area.} Q5 has the widest intervals and highest dollar error, so high-price flags need comparable-sale review before any conclusion.
     \item \textbf{Spatial context matters, but the scope remains review triage.} Zipcode segmentation, distance to Seattle core, and prior local market prices support the model, but they do not turn the system into a full real estate intelligence platform.
     \item \textbf{The interval layer is empirically conservative on the held-out test protocol.} Overall empirical coverage is 96.1\%, exceeding the nominal 90\% target; Q5 coverage is 90.4\%, narrowly satisfying the target. This remains a diagnostic result, not a formal guarantee.
+    \item \textbf{Quantile intervals are sharper but under-covered in this run.} Quantile XGBoost reduces average interval width from \$429,417 to \$236,536 and improves 30\% synthetic recall from 27.5\% to 84.0\%, but held-out coverage falls to 76.7\% overall and 64.3\% in Q5.
     \item \textbf{The dashboard should be used as a triage surface.} The map and sales list help users inspect patterns, but final decisions require comparable-sale review and domain judgment.
     \item \textbf{The largest missing validation step is reviewer feedback.} The current system can create a queue, but it still needs precision@K, reviewer acceptance rate, and false-positive reason codes from a pilot.
 \end{enumerate}
@@ -830,7 +852,7 @@ The project story is focused: a valuation reviewer should not start by manually 
     \item \textbf{Run a human-review pilot.} Review the top 50 and top 100 flagged cases, capture valid flag, false positive, and uncertain labels, and compute precision@K and reviewer acceptance rate.
     \item \textbf{Track reviewer outcomes.} The next version should capture whether reviewers accept, reject, or defer each model flag; this will enable threshold tuning, false-positive analysis, and dashboard prioritization.
     \item \textbf{Measure operational value conservatively.} Estimate analyst review capacity and queue completion time only after observing reviewer workflow.
-    \item \textbf{Evaluate direct heteroscedastic models.} Quantile regression with LightGBM or XGBoost quantile objectives should be tested against the current post-hoc interval policy.
+    \item \textbf{Continue improving heteroscedastic intervals.} The first quantile XGBoost test is sharper but under-covered, so future work should tune quantile losses, add calibration on top of quantile bounds, or compare LightGBM quantile models.
     \item \textbf{Monitor drift for repeated use.} If the system is used beyond the static dataset, monitor data freshness, distribution drift, interval coverage, MAPE, and flagged-rate changes.
     \item \textbf{Keep SHAP in the reporting workflow.} SHAP should remain part of the notebook and report because it supports transparency, but its outputs should be described as model behavior explanations rather than causal claims. Future work should add SHAP interaction diagnostics for the top engineered interaction features.
 \end{enumerate}
@@ -902,7 +924,7 @@ The current system is credible as a course-level decision-support project, but i
 Static 2014--2015 data & Model may not represent current market conditions or interest-rate regimes & Use fresh transaction data, monitor drift, and retrain on a scheduled cadence.\\
 No human-review labels & True precision, recall, and reviewer trust cannot be measured & Run a top-50/top-100 reviewer validation pilot and track acceptance rates.\\
 High-price uncertainty & Q5 properties require very wide intervals, so flags need more domain context & Require comparable-sale review before concluding over- or under-valuation.\\
-Partial heteroscedasticity handling & Post-hoc interval widening may be less efficient than direct variance modeling & Evaluate quantile regression or other conditional interval models.\\
+Partial heteroscedasticity handling & Direct quantile intervals were sharper but under-covered on the held-out test set & Tune quantile models, consider conformalized quantile regression, and keep coverage gates before switching decision bounds.\\
 Missing external variables & School quality, listing history, interest rates, renovation quality, and transaction context are absent & Add external data sources before production use.\\
 SHAP non-causality & Explanations can be misread as causal claims & Present SHAP as model-behavior evidence only, not proof of price drivers.\\
 Dashboard prototype & No saved decisions, authentication, audit log, or production access control & Add reviewer decision storage, role-based access, audit logging, and export workflows.\\
@@ -954,8 +976,10 @@ NhatThanh & Testing and peer-review response & Unit tests, README quickstart, no
 \path{outputs/tables/valuation_metrics.csv} & Official validation and test metrics for the selected valuation model.\\
 \path{outputs/tables/model_baseline_comparison.csv} & Baseline comparison across XGBoost, random forest, linear regression, and median baseline.\\
 \path{outputs/tables/test_interval_coverage_by_price_band.csv} & Coverage and interval width by price band.\\
+\path{outputs/tables/interval_comparison.csv} & Conformal versus quantile XGBoost interval comparison with coverage, width, and synthetic recall gates.\\
+\path{outputs/tables/interval_comparison_by_price_band.csv} & Held-out coverage and interval width comparison by observed price quintile.\\
 \path{outputs/tables/model_flagged_cases.csv} & Human-review queue with local review notes and top drivers.\\
-\path{outputs/tables/synthetic_anomaly_recall.csv} & Synthetic price-shock sanity check for pseudo-recall.\\
+\path{outputs/tables/synthetic_anomaly_recall_comparison.csv} & Synthetic price-shock recall comparison for conformal and quantile interval methods.\\
 \path{report/figures/dashboard_review_dashboard.png} & Actual screenshot of the Streamlit prototype dashboard.\\
 \path{report/figures/report_correlation_heatmap.png} & EDA correlation heatmap for core numeric variables.\\
 \path{report/figures/report_price_by_grade.png} & EDA chart for median price and volume by property grade.\\
