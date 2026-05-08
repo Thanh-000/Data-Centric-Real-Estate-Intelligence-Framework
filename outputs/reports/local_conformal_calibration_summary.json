@@ -1,0 +1,43 @@
+{
+  "alpha": 0.1,
+  "average_interval_width_expected": 430130.3293988459,
+  "average_local_q_hat": 215065.16469942295,
+  "calibration_rows": 4100,
+  "calibration_source": "chronological_validation_holdout",
+  "global_average_interval_width": 429416.55363304354,
+  "global_empirical_coverage": 0.961391304347826,
+  "global_interval_width_expected": 288763.125,
+  "global_q_hat": 144381.5625,
+  "interval_method": "conformal_prediction_residual_quantile_by_predicted_price_decile_and_segment",
+  "max_local_q_hat": 584533.96875,
+  "median_local_q_hat": 153926.119375,
+  "min_local_q_hat": 144381.5625,
+  "min_price_band_samples": 300,
+  "min_segment_samples": 200,
+  "nominal_coverage_target": 0.9,
+  "price_band_edges": [
+    238448.971875,
+    280449.8375,
+    325451.221875,
+    373614.48750000005,
+    427369.46875,
+    486103.3687500005,
+    551783.1312500001,
+    659438.0625,
+    843336.35
+  ],
+  "price_band_summary_file": "C:\\Users\\Admin\\OneDrive\\Desktop\\New folder (4)\\outputs\\tables\\local_conformal_by_price_band.csv",
+  "q5_empirical_coverage": 0.9043478260869565,
+  "quantile_rejection_reasons": [
+    "overall coverage below 90%",
+    "Q5 coverage below 88%"
+  ],
+  "segment_summary_file": "C:\\Users\\Admin\\OneDrive\\Desktop\\New folder (4)\\outputs\\tables\\local_conformal_by_segment.csv",
+  "selected_interval_method": "conformal",
+  "upper_tail_adjusted_rows": 4874,
+  "upper_tail_bands": [
+    "Q9",
+    "Q10"
+  ],
+  "upper_tail_multiplier": 1.35
+}

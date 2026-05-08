@@ -1,0 +1,3 @@
+method,avg_width,coverage,q1_coverage,q5_coverage,q1_avg_width,q5_avg_width,recall_30pct,recall_40pct,recall_50pct,selected_for_decision_layer,selection_rationale
+conformal,429416.55363304354,0.961391304347826,0.9756521739130435,0.9043478260869565,300500.1754336956,847101.784751087,0.275,0.5,0.68,True,kept conformal: overall coverage below 90%; Q5 coverage below 88%
+quantile_xgb,236536.25,0.7669565217391304,0.7860869565217391,0.6434782608695652,119018.5703125,495246.75,0.84,0.885,0.94,False,kept conformal: overall coverage below 90%; Q5 coverage below 88%

@@ -60,6 +60,16 @@ class ModelSuiteArtifacts:
     evaluation_summary: dict[str, dict[str, float]]
 
 
+@dataclass
+class QuantileIntervalArtifacts:
+    lower_pipeline: Pipeline
+    upper_pipeline: Pipeline
+    lower_bound_test: pd.Series
+    upper_bound_test: pd.Series
+    lower_bound_all: pd.Series
+    upper_bound_all: pd.Series
+
+
 def _make_estimator(model_name: str, random_state: int, estimator_params: dict[str, Any] | None = None) -> object:
     estimator_params = estimator_params or {}
     if model_name in {"median_baseline", "dummy_median"}:
@@ -95,6 +105,23 @@ def _make_estimator(model_name: str, random_state: int, estimator_params: dict[s
         params.update(estimator_params)
         return XGBRegressor(**params)
     raise ValueError(f"Unsupported model: {model_name}")
+
+
+def _make_quantile_xgb_estimator(alpha: float, random_state: int) -> object:
+    if XGBRegressor is None:
+        raise ImportError("xgboost is not installed. Install it to run quantile interval candidates.")
+    # Quantile alpha bounds are direct model outputs, not post-hoc conformal adjustments.
+    return XGBRegressor(
+        objective="reg:quantileerror",
+        quantile_alpha=float(alpha),
+        n_estimators=500,
+        learning_rate=0.05,
+        max_depth=6,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        random_state=random_state,
+        n_jobs=-1,
+    )
 
 
 def official_model_available(model_name: str = OFFICIAL_MODEL_NAME) -> bool:
@@ -158,6 +185,24 @@ def _fit_pipeline(
         _transform_target(train_df[target_column], target_strategy=target_strategy),
         **fit_kwargs,
     )
+    return pipeline
+
+
+def _fit_quantile_pipeline(
+    train_df: pd.DataFrame,
+    feature_columns: list[str],
+    target_column: str,
+    alpha: float,
+    random_state: int,
+) -> Pipeline:
+    preprocessing = build_preprocessor(train_df, feature_columns, scale_numeric=False)
+    pipeline = Pipeline(
+        steps=[
+            ("preprocessor", preprocessing.transformer),
+            ("model", _make_quantile_xgb_estimator(alpha=alpha, random_state=random_state)),
+        ]
+    )
+    pipeline.fit(train_df[feature_columns], train_df[target_column].astype(float).to_numpy())
     return pipeline
 
 
@@ -458,6 +503,69 @@ def fit_selected_model_artifacts(
         name="fair_value_hat_all",
     )
     return final_pipeline, fair_value_hat_oof, fair_value_hat_test, fair_value_hat_all
+
+
+def train_quantile_interval_artifacts(
+    train_df: pd.DataFrame,
+    full_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    feature_columns: list[str],
+    target_column: str,
+    random_state: int,
+) -> QuantileIntervalArtifacts:
+    """Train p05/p95 XGBoost quantile candidates on the chronological train split only."""
+    lower_pipeline = _fit_quantile_pipeline(
+        train_df=train_df,
+        feature_columns=feature_columns,
+        target_column=target_column,
+        alpha=0.05,
+        random_state=random_state,
+    )
+    upper_pipeline = _fit_quantile_pipeline(
+        train_df=train_df,
+        feature_columns=feature_columns,
+        target_column=target_column,
+        alpha=0.95,
+        random_state=random_state,
+    )
+    lower_test_raw = pd.Series(
+        lower_pipeline.predict(test_df[feature_columns]),
+        index=test_df.index,
+        name="lower_bound_qr",
+    )
+    upper_test_raw = pd.Series(
+        upper_pipeline.predict(test_df[feature_columns]),
+        index=test_df.index,
+        name="upper_bound_qr",
+    )
+    lower_all_raw = pd.Series(
+        lower_pipeline.predict(full_df[feature_columns]),
+        index=full_df.index,
+        name="lower_bound_qr",
+    )
+    upper_all_raw = pd.Series(
+        upper_pipeline.predict(full_df[feature_columns]),
+        index=full_df.index,
+        name="upper_bound_qr",
+    )
+
+    lower_bound_test = pd.Series(np.minimum(lower_test_raw, upper_test_raw), index=test_df.index).clip(lower=0.0)
+    upper_bound_test = pd.Series(np.maximum(lower_test_raw, upper_test_raw), index=test_df.index).clip(lower=0.0)
+    lower_bound_all = pd.Series(np.minimum(lower_all_raw, upper_all_raw), index=full_df.index).clip(lower=0.0)
+    upper_bound_all = pd.Series(np.maximum(lower_all_raw, upper_all_raw), index=full_df.index).clip(lower=0.0)
+    lower_bound_test.name = "lower_bound_qr"
+    upper_bound_test.name = "upper_bound_qr"
+    lower_bound_all.name = "lower_bound_qr"
+    upper_bound_all.name = "upper_bound_qr"
+
+    return QuantileIntervalArtifacts(
+        lower_pipeline=lower_pipeline,
+        upper_pipeline=upper_pipeline,
+        lower_bound_test=lower_bound_test,
+        upper_bound_test=upper_bound_test,
+        lower_bound_all=lower_bound_all,
+        upper_bound_all=upper_bound_all,
+    )
 
 
 def train_and_select_model(

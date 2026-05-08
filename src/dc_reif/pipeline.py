@@ -31,7 +31,12 @@ from dc_reif.reporting import (
 )
 from dc_reif.uncertainty import build_prediction_intervals, calibrate_local_conformal, evaluate_interval_quality
 from dc_reif.utils import get_logger, write_json
-from dc_reif.valuation_core import chronological_split, evaluate_model_suite, train_and_select_model
+from dc_reif.valuation_core import (
+    chronological_split,
+    evaluate_model_suite,
+    train_and_select_model,
+    train_quantile_interval_artifacts,
+)
 
 LOGGER = get_logger(__name__)
 
@@ -92,6 +97,131 @@ def _error_by_group(dataframe: pd.DataFrame, group_column: str) -> pd.DataFrame:
             }
         )
     return pd.DataFrame(rows).sort_values("count", ascending=False).reset_index(drop=True)
+
+
+def _interval_quality_by_band(actual: pd.Series, lower: pd.Series, upper: pd.Series) -> pd.DataFrame:
+    frame = pd.DataFrame({"actual": actual, "lower_bound": lower, "upper_bound": upper}).dropna()
+    if frame.empty:
+        return pd.DataFrame(columns=["price_band", "count", "empirical_coverage", "average_interval_width"])
+    frame["price_band"] = _price_band(frame["actual"])
+    rows: list[dict[str, object]] = []
+    for price_band, group in frame.groupby("price_band", dropna=False):
+        rows.append(
+            {
+                "price_band": price_band,
+                "count": int(len(group)),
+                "empirical_coverage": float(
+                    ((group["actual"] >= group["lower_bound"]) & (group["actual"] <= group["upper_bound"])).mean()
+                ),
+                "average_interval_width": float((group["upper_bound"] - group["lower_bound"]).mean()),
+            }
+        )
+    return pd.DataFrame(rows).sort_values("price_band").reset_index(drop=True)
+
+
+def _synthetic_recall_for_bounds(
+    frame: pd.DataFrame,
+    *,
+    lower_col: str,
+    upper_col: str,
+    method: str,
+    n_per_direction: int = 100,
+    shocks: tuple[float, ...] = (0.30, 0.40, 0.50),
+    random_state: int = 42,
+) -> pd.DataFrame:
+    candidates = frame.loc[
+        frame["observed_price"].notna()
+        & frame["fair_value_hat"].notna()
+        & frame[lower_col].notna()
+        & frame[upper_col].notna()
+        & frame["observed_price"].between(frame[lower_col], frame[upper_col])
+    ].copy()
+    if candidates.empty:
+        return pd.DataFrame(columns=["method", "scenario", "shock", "sample_size", "detected", "recall"])
+
+    sample_size = min(n_per_direction, len(candidates))
+    rows: list[dict[str, object]] = []
+    for shock in shocks:
+        for scenario, multiplier, expected_flag in [
+            ("synthetic_over_value", 1.0 + shock, "potentially_over_valued"),
+            ("synthetic_under_value", 1.0 - shock, "potentially_under_valued"),
+        ]:
+            sample = candidates.sample(n=sample_size, random_state=random_state + len(rows)).copy()
+            synthetic_observed = sample["observed_price"] * multiplier
+            synthetic_flag = np.select(
+                [
+                    synthetic_observed < sample[lower_col],
+                    synthetic_observed > sample[upper_col],
+                ],
+                ["potentially_under_valued", "potentially_over_valued"],
+                default="within_expected_range",
+            )
+            detected = int((synthetic_flag == expected_flag).sum())
+            rows.append(
+                {
+                    "method": method,
+                    "scenario": scenario,
+                    "shock": float(shock),
+                    "sample_size": int(sample_size),
+                    "detected": detected,
+                    "recall": detected / sample_size if sample_size else np.nan,
+                }
+            )
+
+    results = pd.DataFrame(rows)
+    for shock, group in results.groupby("shock", sort=True):
+        total_sample = int(group["sample_size"].sum())
+        total_detected = int(group["detected"].sum())
+        results.loc[len(results)] = {
+            "method": method,
+            "scenario": "overall",
+            "shock": float(shock),
+            "sample_size": total_sample,
+            "detected": total_detected,
+            "recall": total_detected / total_sample if total_sample else np.nan,
+        }
+    return results
+
+
+def _interval_comparison(
+    *,
+    test_actual: pd.Series,
+    conformal_lower: pd.Series,
+    conformal_upper: pd.Series,
+    quantile_lower: pd.Series,
+    quantile_upper: pd.Series,
+    synthetic_results: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    rows: list[dict[str, object]] = []
+    band_rows: list[pd.DataFrame] = []
+    for method, lower, upper in [
+        ("conformal", conformal_lower, conformal_upper),
+        ("quantile_xgb", quantile_lower, quantile_upper),
+    ]:
+        metrics = evaluate_interval_quality(test_actual, lower, upper)
+        by_band = _interval_quality_by_band(test_actual, lower, upper)
+        by_band.insert(0, "method", method)
+        band_rows.append(by_band)
+        coverage_map = by_band.set_index("price_band")["empirical_coverage"].to_dict()
+        width_map = by_band.set_index("price_band")["average_interval_width"].to_dict()
+        recall_overall = synthetic_results.loc[
+            synthetic_results["method"].eq(method) & synthetic_results["scenario"].eq("overall")
+        ].set_index("shock")["recall"].to_dict()
+        rows.append(
+            {
+                "method": method,
+                "avg_width": float(metrics["average_interval_width"]),
+                "coverage": float(metrics["empirical_coverage"]),
+                "q1_coverage": float(coverage_map.get("Q1", np.nan)),
+                "q5_coverage": float(coverage_map.get("Q5", np.nan)),
+                "q1_avg_width": float(width_map.get("Q1", np.nan)),
+                "q5_avg_width": float(width_map.get("Q5", np.nan)),
+                "recall_30pct": float(recall_overall.get(0.30, np.nan)),
+                "recall_40pct": float(recall_overall.get(0.40, np.nan)),
+                "recall_50pct": float(recall_overall.get(0.50, np.nan)),
+            }
+        )
+    return pd.DataFrame(rows), pd.concat(band_rows, ignore_index=True) if band_rows else pd.DataFrame()
 
 
 def _price_band(series: pd.Series, n_bands: int = 5) -> pd.Series:
@@ -311,6 +441,85 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
         alpha=config.alpha,
     )
     intervals = build_prediction_intervals(fair_value_hat, q_hat=local_prediction_frame["q_hat"])
+    conformal_intervals = intervals.copy()
+
+    quantile_intervals = train_quantile_interval_artifacts(
+        train_df=split_bundle.train_df,
+        full_df=modeling_df,
+        test_df=split_bundle.test_df,
+        feature_columns=predictive_features,
+        target_column=config.target_column,
+        random_state=config.random_state,
+    )
+    synthetic_frame = pd.DataFrame(
+        {
+            "observed_price": modeling_df[config.target_column],
+            "fair_value_hat": conformal_intervals["fair_value_hat"],
+            "lower_bound_conformal": conformal_intervals["lower_bound"],
+            "upper_bound_conformal": conformal_intervals["upper_bound"],
+            "lower_bound_qr": quantile_intervals.lower_bound_all.reindex(modeling_df.index),
+            "upper_bound_qr": quantile_intervals.upper_bound_all.reindex(modeling_df.index),
+        },
+        index=modeling_df.index,
+    )
+    interval_synthetic_recall = pd.concat(
+        [
+            _synthetic_recall_for_bounds(
+                synthetic_frame,
+                lower_col="lower_bound_conformal",
+                upper_col="upper_bound_conformal",
+                method="conformal",
+            ),
+            _synthetic_recall_for_bounds(
+                synthetic_frame,
+                lower_col="lower_bound_qr",
+                upper_col="upper_bound_qr",
+                method="quantile_xgb",
+            ),
+        ],
+        ignore_index=True,
+    )
+    interval_comparison, interval_comparison_by_band = _interval_comparison(
+        test_actual=split_bundle.test_df[config.target_column],
+        conformal_lower=conformal_intervals.loc[split_bundle.test_df.index, "lower_bound"],
+        conformal_upper=conformal_intervals.loc[split_bundle.test_df.index, "upper_bound"],
+        quantile_lower=quantile_intervals.lower_bound_test,
+        quantile_upper=quantile_intervals.upper_bound_test,
+        synthetic_results=interval_synthetic_recall,
+    )
+    quantile_row = interval_comparison.loc[interval_comparison["method"].eq("quantile_xgb")].iloc[0]
+    conformal_row = interval_comparison.loc[interval_comparison["method"].eq("conformal")].iloc[0]
+    interval_method = "quantile_xgb"
+    quantile_rejection_reasons: list[str] = []
+    if float(quantile_row["coverage"]) < 0.90:
+        quantile_rejection_reasons.append("overall coverage below 90%")
+    if float(quantile_row["q5_coverage"]) < 0.88:
+        quantile_rejection_reasons.append("Q5 coverage below 88%")
+    if float(quantile_row["avg_width"]) >= float(conformal_row["avg_width"]):
+        quantile_rejection_reasons.append("average interval width is not lower than conformal")
+    if float(quantile_row["recall_30pct"]) < 0.50:
+        quantile_rejection_reasons.append("30% synthetic recall below 50%")
+    if quantile_rejection_reasons:
+        interval_method = "conformal"
+    interval_comparison = interval_comparison.assign(
+        selected_for_decision_layer=lambda frame: frame["method"].eq(interval_method),
+        selection_rationale=(
+            "selected: quantile_xgb met coverage, width, and synthetic recall gates"
+            if interval_method == "quantile_xgb"
+            else "kept conformal: " + "; ".join(quantile_rejection_reasons)
+        ),
+    )
+    save_dataframe(interval_comparison, config.paths.tables_dir / "interval_comparison.csv")
+    save_dataframe(interval_comparison_by_band, config.paths.tables_dir / "interval_comparison_by_price_band.csv")
+    save_dataframe(interval_synthetic_recall, config.paths.tables_dir / "synthetic_anomaly_recall_comparison.csv")
+
+    if interval_method == "quantile_xgb":
+        intervals = pd.DataFrame(index=modeling_df.index)
+        intervals["fair_value_hat"] = fair_value_hat
+        intervals["lower_bound"] = quantile_intervals.lower_bound_all.reindex(modeling_df.index)
+        intervals["upper_bound"] = quantile_intervals.upper_bound_all.reindex(modeling_df.index)
+        intervals["interval_width"] = intervals["upper_bound"] - intervals["lower_bound"]
+        intervals["q_hat"] = intervals["interval_width"] / 2.0
     interval_metrics = evaluate_interval_quality(
         split_bundle.test_df[config.target_column],
         intervals.loc[split_bundle.test_df.index, "lower_bound"],
@@ -330,6 +539,16 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
             "upper_bound": intervals["upper_bound"],
             "interval_width": intervals["interval_width"],
             "q_hat": intervals["q_hat"],
+            "interval_method": interval_method,
+            "lower_bound_conformal": conformal_intervals["lower_bound"],
+            "upper_bound_conformal": conformal_intervals["upper_bound"],
+            "interval_width_conformal": conformal_intervals["interval_width"],
+            "lower_bound_qr": quantile_intervals.lower_bound_all.reindex(modeling_df.index),
+            "upper_bound_qr": quantile_intervals.upper_bound_all.reindex(modeling_df.index),
+            "interval_width_qr": (
+                quantile_intervals.upper_bound_all.reindex(modeling_df.index)
+                - quantile_intervals.lower_bound_all.reindex(modeling_df.index)
+            ),
             "predicted_price_band": local_prediction_frame["predicted_price_band"],
             "price_band_support_n": local_prediction_frame["price_band_support_n"],
             "segment_support_n": local_prediction_frame["segment_support_n"],
@@ -404,6 +623,9 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
         {
             "q_hat": float(calibration_artifacts.global_q_hat),
             **interval_metrics,
+            "selected_interval_method": interval_method,
+            "quantile_rejection_reasons": quantile_rejection_reasons,
+            "interval_comparison_file": str(config.paths.tables_dir / "interval_comparison.csv"),
         },
         config.paths.reports_dir / "uncertainty_metrics.json",
     )
@@ -417,6 +639,8 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
             "global_empirical_coverage": float(interval_metrics["empirical_coverage"]),
             "global_average_interval_width": float(interval_metrics["average_interval_width"]),
             "q5_empirical_coverage": q5_coverage,
+            "selected_interval_method": interval_method,
+            "quantile_rejection_reasons": quantile_rejection_reasons,
             "price_band_summary_file": str(config.paths.tables_dir / "local_conformal_by_price_band.csv"),
             "segment_summary_file": str(config.paths.tables_dir / "local_conformal_by_segment.csv"),
         },
@@ -447,6 +671,8 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
         f"- Validation report: {config.validation_report_path}",
         f"- Cleaned rows retained: {cleaning_result.summary['rows_out']}",
         f"- Local conformal global q-hat: {calibration_artifacts.global_q_hat:.2f}",
+        f"- Selected interval method: {interval_method}",
+        f"- Quantile comparison rationale: {interval_comparison.loc[0, 'selection_rationale']}",
         f"- Test empirical coverage: {interval_metrics['empirical_coverage']:.3f}",
         f"- Test Q5 empirical coverage: {q5_coverage:.3f}",
         f"- Test average interval width: {interval_metrics['average_interval_width']:.2f}",
@@ -464,6 +690,9 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
         q5_interval_width=q5_interval_width,
         property_ledger=property_ledger,
         output_path=config.paths.reports_dir / "trust_summary.md",
+        interval_comparison=interval_comparison,
+        selected_interval_method=interval_method,
+        quantile_rejection_reasons=quantile_rejection_reasons,
     )
     model_flagged_cases = save_dataframe(
         _model_flagged_cases(property_ledger),
@@ -486,6 +715,9 @@ def run_full_pipeline(config: ProjectConfig, include_enhanced_features: bool = T
         "baseline_models": "median_baseline, linear_regression, random_forest",
         "model_baseline_comparison": str(config.paths.tables_dir / "model_baseline_comparison.csv"),
         "anomaly_threshold_sensitivity": str(config.paths.tables_dir / "anomaly_threshold_sensitivity.csv"),
+        "interval_comparison": str(config.paths.tables_dir / "interval_comparison.csv"),
+        "interval_comparison_by_price_band": str(config.paths.tables_dir / "interval_comparison_by_price_band.csv"),
+        "synthetic_anomaly_recall_comparison": str(config.paths.tables_dir / "synthetic_anomaly_recall_comparison.csv"),
         "property_intelligence": str(config.paths.tables_dir / "property_intelligence_table.csv"),
         "model_flagged_cases": str(model_flagged_cases),
         "feature_importance_plot": str(importance_plot),
