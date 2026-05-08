@@ -171,47 +171,12 @@ def write_trust_summary(
     q5_interval_width: float,
     property_ledger: pd.DataFrame,
     output_path: Path,
-    interval_comparison: pd.DataFrame | None = None,
-    selected_interval_method: str = "conformal",
-    quantile_rejection_reasons: list[str] | None = None,
 ) -> Path:
     row = valuation_metrics.iloc[0].to_dict() if not valuation_metrics.empty else {}
     counts = property_ledger["anomaly_flag"].value_counts().to_dict()
     model_flagged = int(
         property_ledger["anomaly_flag"].isin(["potentially_over_valued", "potentially_under_valued"]).sum()
     )
-    comparison_lines: list[str] = []
-    if interval_comparison is not None and not interval_comparison.empty:
-        comparison_lines.extend(
-            [
-                "",
-                "### Interval Method Comparison",
-                "",
-                f"- Selected decision-layer interval method: `{selected_interval_method}`",
-            ]
-        )
-        for method in ["conformal", "quantile_xgb"]:
-            subset = interval_comparison.loc[interval_comparison["method"].eq(method)]
-            if subset.empty:
-                continue
-            method_row = subset.iloc[0]
-            comparison_lines.append(
-                f"- {method}: coverage {float(method_row.get('coverage', float('nan'))):.1%}, "
-                f"Q5 coverage {float(method_row.get('q5_coverage', float('nan'))):.1%}, "
-                f"average width ${float(method_row.get('avg_width', float('nan'))):,.0f}, "
-                f"30% synthetic recall {float(method_row.get('recall_30pct', float('nan'))):.1%}"
-            )
-        if selected_interval_method != "quantile_xgb" and quantile_rejection_reasons:
-            comparison_lines.append(
-                "- Quantile XGBoost was not selected because "
-                + "; ".join(quantile_rejection_reasons)
-                + "."
-            )
-        elif selected_interval_method == "quantile_xgb":
-            comparison_lines.append(
-                "- Quantile XGBoost was selected because it met the coverage, Q5 coverage, width, and synthetic-recall gates."
-            )
-
     lines = [
         "# Trust Summary",
         "",
@@ -234,7 +199,6 @@ def write_trust_summary(
         f"- High-price Q5 empirical coverage: {q5_coverage:.1%}",
         f"- Average interval width: ${interval_metrics.get('average_interval_width', float('nan')):,.0f}",
         f"- High-price Q5 average interval width: ${q5_interval_width:,.0f}",
-        *comparison_lines,
         "",
         "## Decision Layer",
         "",
