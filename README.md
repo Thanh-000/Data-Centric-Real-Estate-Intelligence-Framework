@@ -141,7 +141,7 @@ Recommended Colab sequence:
 4. Run the notebook from top to bottom. If the notebook is launched standalone in Colab, the setup cell clones this repository automatically.
 5. The setup cell installs `requirements.txt`, installs `aria2` in Colab when available, and makes the package importable. It does not mount Google Drive.
 6. The data cell downloads the public King County dataset through the project downloader, preferring `aria2`.
-7. Optional dashboard: set `NGROK_AUTHTOKEN` as a Colab secret or environment variable, then run the final notebook cell. Use the printed ngrok URL, not `localhost:8501`.
+7. Optional dashboard: set `NGROK_AUTHTOKEN` as a Colab secret or environment variable, then run the final notebook cell. If neither is set, the cell prompts for the token at runtime with hidden input. Use the printed ngrok URL, not `localhost:8501`.
 8. Optionally run `python -m pytest -q` after the notebook or script workflow.
 
 The final Colab dashboard cell checks that the current dashboard source is present, creates missing dashboard outputs by running quickstart, waits for Streamlit to become healthy, and prints the Streamlit log path if startup fails.
