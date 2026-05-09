@@ -40,3 +40,6 @@ outputs/reports/*
 # Local tooling
 .coverage
 htmlcov/
+
+# Course handout / local submission reference
+INS3254-FinalProject2026.pdf
