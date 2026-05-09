@@ -561,13 +561,49 @@ def build_slice_summary(dataframe: pd.DataFrame, column: str) -> pd.DataFrame:
 def format_currency(value: Any) -> str:
     if pd.isna(value):
         return "-"
-    return f"${float(value):,.0f}"
+    try:
+        return f"${float(value):,.0f}"
+    except (TypeError, ValueError):
+        return "-"
+
+
+def format_percent(value: Any, digits: int = 2) -> str:
+    if pd.isna(value):
+        return "-"
+    try:
+        return f"{float(value):.{digits}%}"
+    except (TypeError, ValueError):
+        return "-"
+
+
+def format_percent_points(value: Any, digits: int = 2) -> str:
+    if pd.isna(value):
+        return "-"
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return "-"
+    if abs(number) <= 1:
+        return f"{number:.{digits}%}"
+    return f"{number:.{digits}f}%"
+
+
+def format_decimal(value: Any, digits: int = 4) -> str:
+    if pd.isna(value):
+        return "-"
+    try:
+        return f"{float(value):.{digits}f}"
+    except (TypeError, ValueError):
+        return "-"
 
 
 def format_score(value: Any) -> str:
     if pd.isna(value):
         return "-"
-    return f"{float(value):.3f}"
+    try:
+        return f"{float(value):.3f}"
+    except (TypeError, ValueError):
+        return "-"
 
 
 def queue_column_config() -> dict[str, Any]:
@@ -726,11 +762,14 @@ def inject_dashboard_css() -> None:
         html, body, [class*="css"] {
             font-family: Inter, Arial, sans-serif;
             color: var(--ink);
+            color-scheme: light !important;
         }
         .stApp {
             background:
                 radial-gradient(circle at 16% 0%, rgba(86, 148, 255, 0.12), transparent 28rem),
                 linear-gradient(180deg, #f3f6ff 0%, #f8f9fd 42%, #f7f8fc 100%);
+            color: var(--ink);
+            color-scheme: light !important;
         }
         .block-container {
             padding: 0 1.35rem 1.6rem 1.35rem;
@@ -744,6 +783,7 @@ def inject_dashboard_css() -> None:
             min-width: 292px !important;
             background: #f4f5fa;
             border-right: 1px solid var(--line);
+            color: var(--ink);
         }
         section[data-testid="stSidebar"] > div {
             padding: 1.05rem 0.75rem;
@@ -753,15 +793,54 @@ def inject_dashboard_css() -> None:
         section[data-testid="stSidebar"] h3 {
             color: var(--ink) !important;
         }
+        section[data-testid="stSidebar"] label,
+        section[data-testid="stSidebar"] label *,
+        section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"],
+        section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] * {
+            color: var(--ink) !important;
+            opacity: 1 !important;
+        }
         div[role="radiogroup"] label {
             border-radius: 8px;
             padding: 0.55rem 0.7rem;
             margin-bottom: 0.14rem;
+            color: var(--ink) !important;
+            opacity: 1 !important;
+        }
+        div[role="radiogroup"] label * {
+            color: var(--ink) !important;
+            opacity: 1 !important;
         }
         div[role="radiogroup"] label:has(input:checked) {
             background: #dde2e8;
-            color: var(--ink);
+            color: var(--ink) !important;
             font-weight: 700;
+        }
+        [data-testid="stWidgetLabel"],
+        [data-testid="stWidgetLabel"] *,
+        [data-testid="stSelectbox"] label,
+        [data-testid="stTextInput"] label,
+        [data-testid="stTextArea"] label,
+        [data-testid="stSlider"] label,
+        [data-testid="stToggle"] label {
+            color: #172033 !important;
+            opacity: 1 !important;
+        }
+        [data-baseweb="select"] > div,
+        [data-baseweb="input"] > div,
+        input,
+        textarea {
+            background-color: #ffffff !important;
+            color: #172033 !important;
+            -webkit-text-fill-color: #172033 !important;
+        }
+        [data-baseweb="select"] *,
+        [data-baseweb="input"] *,
+        textarea::placeholder,
+        input::placeholder {
+            color: #526074 !important;
+            -webkit-text-fill-color: #526074 !important;
+            opacity: 1 !important;
         }
         .topbar {
             height: 58px;
@@ -781,6 +860,7 @@ def inject_dashboard_css() -> None:
             font-size: 1.45rem;
             font-weight: 800;
             letter-spacing: -0.01em;
+            color: var(--ink);
         }
         .topbar-tools {
             display: flex;
@@ -820,6 +900,11 @@ def inject_dashboard_css() -> None:
             border-radius: 8px;
             background: var(--panel);
             box-shadow: 0 1px 2px rgba(0, 24, 64, 0.04);
+            color: var(--ink);
+        }
+        .card,
+        .card * {
+            opacity: 1 !important;
         }
         .kpi-card {
             min-height: 126px;
@@ -1067,6 +1152,15 @@ def inject_dashboard_css() -> None:
             border-radius: 8px;
             background: white;
             box-shadow: none;
+            color: var(--ink);
+        }
+        div[data-testid="stMetricLabel"],
+        div[data-testid="stMetricLabel"] *,
+        div[data-testid="stMetricValue"],
+        div[data-testid="stMetricDelta"],
+        div[data-testid="stMetricDelta"] * {
+            color: var(--ink) !important;
+            opacity: 1 !important;
         }
         div[data-testid="stMetricValue"] {
             color: var(--ink);
@@ -1386,7 +1480,7 @@ def render_overview(dataframe: pd.DataFrame, filtered: pd.DataFrame, metrics: di
     with kpi_cols[2]:
         test_r2 = row.get("test_r2", None) if hasattr(row, "get") else None
         test_mape = row.get("test_mape", None) if hasattr(row, "get") else None
-        metric_card("Model Performance", f"{float(test_r2):.4f}" if isinstance(test_r2, (int, float)) else "-", "Test MAPE", f"{float(test_mape):.2f}%" if isinstance(test_mape, (int, float)) else "-", tone="green")
+        metric_card("Model Performance", format_decimal(test_r2), "Test MAPE", format_percent_points(test_mape), tone="green")
     with kpi_cols[3]:
         coverage = trust.get("global_empirical_coverage")
         q5 = trust.get("q5_empirical_coverage", trust.get("q5_coverage_from_table"))
@@ -1492,9 +1586,9 @@ def render_uncertainty() -> None:
     values = [
         ("Global q-hat", format_currency(trust.get("global_q_hat"))),
         ("Avg localized q-hat", format_currency(trust.get("average_local_q_hat"))),
-        ("Empirical coverage", f"{trust.get('global_empirical_coverage', 0):.2%}"),
+        ("Empirical coverage", format_percent(trust.get("global_empirical_coverage"))),
         ("Avg interval width", format_currency(unc_data.get("average_interval_width", trust.get("global_average_interval_width")))),
-        ("Q5 coverage", f"{trust.get('q5_empirical_coverage', 0):.2%}"),
+        ("Q5 coverage", format_percent(trust.get("q5_empirical_coverage"))),
         ("Q5 interval width", format_currency(trust.get("q5_interval_width"))),
     ]
     cols = st.columns(6)
@@ -1595,8 +1689,10 @@ def render_data_quality(dataframe: pd.DataFrame) -> None:
     dq_report = load_json_report(DEFAULT_DATA_QUALITY) or {}
     cols = st.columns(3)
     with cols[0]:
-        retention = cleaning.get("rows_out", 0) / cleaning.get("rows_in", 1)
-        metric_card("Cleaned Rows", f"{cleaning.get('rows_out', len(dataframe)):,}", f"{retention:.1%} retention rate")
+        rows_out = int(cleaning.get("rows_out", len(dataframe)))
+        rows_in = cleaning.get("rows_in")
+        retention_text = f"{float(rows_out) / float(rows_in):.1%} retention rate" if rows_in else "Loaded property table"
+        metric_card("Cleaned Rows", f"{rows_out:,}", retention_text)
     with cols[1]:
         metric_card("Train / Val / Test", "70 / 15 / 15", "Stratified by micro-market")
     with cols[2]:
@@ -1684,16 +1780,16 @@ def render_data_processing_eda(dataframe: pd.DataFrame) -> None:
     left, right = st.columns(2)
     with left:
         missing = dq_report.get("missing_summary", {})
-        missing_df = pd.DataFrame(
-            [
-                {
-                    "feature": key,
-                    "missing_pct": (float(value) / max(float(dq_report.get("row_count", len(dataframe))), 1.0)) * 100,
-                }
-                for key, value in missing.items()
-                if float(value) > 0
-            ]
-        ).sort_values("missing_pct", ascending=True)
+        missing_rows = []
+        row_count = max(float(dq_report.get("row_count", len(dataframe)) or len(dataframe) or 1), 1.0)
+        if isinstance(missing, dict):
+            for key, value in missing.items():
+                missing_count = float(value)
+                if missing_count > 0:
+                    missing_rows.append({"feature": key, "missing_pct": (missing_count / row_count) * 100})
+        missing_df = pd.DataFrame(missing_rows)
+        if not missing_df.empty:
+            missing_df = missing_df.sort_values("missing_pct", ascending=True)
         st.markdown("<div class='section-title'>Missing Values by Feature</div>", unsafe_allow_html=True)
         if not missing_df.empty:
             fig = go.Figure(go.Bar(x=missing_df["missing_pct"], y=missing_df["feature"], orientation="h", marker_color="#2f6fb5"))
@@ -1791,9 +1887,9 @@ def render_performance() -> None:
     with cols[0]:
         metric_card("Primary Algorithm", "XGBoost", "v2.4.1")
     with cols[1]:
-        metric_card("Test R²", f"{row.get('test_r2', 0):.4f}" if hasattr(row, "get") else "-")
+        metric_card("Test R²", format_decimal(row.get("test_r2")) if hasattr(row, "get") else "-")
     with cols[2]:
-        metric_card("Test MAPE", f"{row.get('test_mape', 0):.2f}%" if hasattr(row, "get") else "-")
+        metric_card("Test MAPE", format_percent_points(row.get("test_mape")) if hasattr(row, "get") else "-")
     with cols[3]:
         metric_card("Test RMSE", format_currency(row.get("test_rmse")) if hasattr(row, "get") else "-")
     st.write("")
