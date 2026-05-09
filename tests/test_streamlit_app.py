@@ -77,7 +77,7 @@ def test_prepare_map_frame_renders_within_range_as_background_points():
 
     assert len(map_frame) == 1
     assert map_frame["radius_px"].iloc[0] == 2.4
-    assert map_frame["label"].iloc[0] == "Within range"
+    assert map_frame["label"].iloc[0] == "Within expected range"
 
 
 def test_map_metrics_counts_what_is_actually_mapped():
